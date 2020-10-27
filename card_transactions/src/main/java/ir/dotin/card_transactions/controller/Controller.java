@@ -14,6 +14,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
+import java.util.List;
 
 @RestController
 public class Controller {
@@ -111,5 +113,69 @@ public class Controller {
         return transactionObj;
     }
 
+    @PostMapping(path = "/lasttentransaction")
+    public List<Transaction> lastTenTransaction(@RequestBody String str) throws Exception {
+        JSONParser parser = new JSONParser();
+        JSONObject json = (JSONObject) parser.parse(str);
+        Long originalCardNumber = (Long) json.get("cardNumber");
+        String password = String.valueOf(json.get("password"));
+        String transactionDate = (String) json.get("transactionDate");
+        String terminalType = (String) json.get("terminalType");
+//        Long trackingNumber = (Long) json.get("trackingNumber");
 
+        Card cardObj = null;
+        Card validCard = null;
+        Transaction transactionObj = new Transaction();
+        List<Transaction> transactionList = null;
+        Long trackingNum = validator.trackingNumberMaker();
+        transactionObj.setAmount(0L);
+        transactionObj.setTransactionDate(transactionDate);
+        transactionObj.setTerminalType(terminalType);
+        transactionObj.setTrackingNumber(trackingNum);
+        transactionObj.setOriginalCardNumber(originalCardNumber);
+        transactionObj.setTransactionType(0);
+
+        boolean cardNumberValidation = validator.cardNumberExisting(originalCardNumber);
+
+        if (cardNumberValidation) {
+            cardObj = cardService.fetchCardByCardNumber(originalCardNumber);
+            transactionObj.setCard(new Card(cardObj.getId()));
+            boolean passwordValidation = validator.passwordValidation(password);
+            boolean checkLogin = validator.checkLogin(password, originalCardNumber);
+            if (passwordValidation && checkLogin) {
+                String hashedPass = Configuration.passwordHash(password);
+                validCard = cardService.fetchCardByCardNumberAndPassword(originalCardNumber, hashedPass);
+                validCard.setWrongCount(0);
+                validCard.setMessage("done");
+                cardService.saveCard(validCard);
+            } else {
+                cardObj.setMessage("invalid password");
+                cardObj.setWrongCount(cardObj.getWrongCount() + 1);
+                cardService.saveCard(cardObj);
+                transactionObj.setResponseCode("57");
+                transactionService.saveTransaction(transactionObj);
+            }
+        } else {
+            transactionObj.setResponseCode("15");
+        }
+
+        if (validCard != null) {
+            transactionList = transactionService.fetchLastTen10ByOriginalCardNumber(originalCardNumber);
+            if (transactionList != null) {
+                transactionObj.setCard(new Card(validCard.getId()));
+                transactionObj.setResponseCode("00");
+                transactionService.saveTransaction(transactionObj);
+                transactionObj.setId(0L);
+                transactionList.add(transactionObj);
+                return transactionList;
+            }
+        }
+
+        transactionObj.setId(0L);
+        List<Transaction> invalidTransaction = new ArrayList<>();
+        invalidTransaction.add(transactionObj);
+        return invalidTransaction;
+    }
+
+    
 }
