@@ -14,6 +14,13 @@ import java.util.Set;
 @ToString
 public class Card {
 
+    public Card() {
+    }
+
+    public Card(Long id) {
+        this.id = id;
+    }
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -26,10 +33,12 @@ public class Card {
     private String password;
 
     @Column(name = "password_condition")
-    private boolean passwordCondition;
+    private int passwordCondition;
 
-    @Column(name = "wrong_counter")
-    private int wrongCounter;
+    @Column(name = "wrong_count")
+    private int wrongCount;
+
+    private String message;
 
     @OneToMany(cascade = CascadeType.ALL, mappedBy = "card")
     private Set<Transaction> transactions;

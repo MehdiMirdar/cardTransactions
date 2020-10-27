@@ -1,11 +1,11 @@
 package ir.dotin.card_transactions.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
 
 import javax.persistence.*;
-import java.util.Date;
 
 @Entity
 @Table(name = "tbl_transaction")
@@ -19,10 +19,10 @@ public class Transaction {
     private Long id;
 
     @Column(name = "transaction_date")
-    private Date transactionDate;
+    private String transactionDate;
 
     @Column(name = "terminal_type")
-    private int terminalType;
+    private String terminalType;
 
     @Column(name = "tracking_number")
     private Long trackingNumber;
@@ -33,12 +33,14 @@ public class Transaction {
     private Long amount;
 
     @Column(name = "response_code")
-    private int responseCode;
+    private String responseCode;
 
     @Column(name = "transaction_type")
     private int transactionType;
 
+    @JsonIgnore
     @ManyToOne
     @JoinColumn(name = "card_id", nullable = false)
     private Card card;
+
 }

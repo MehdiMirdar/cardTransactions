@@ -8,7 +8,7 @@ public class CardTransactionsApplication {
 
     public static void main(String[] args) {
         SpringApplication.run(CardTransactionsApplication.class, args);
-        System.out.println("test");
+        System.out.println("running...");
     }
 
 }
