@@ -58,7 +58,7 @@ public class Controller {
     }
 
     @PostMapping(path = "/cardbalance")
-    public Transaction authCard(@RequestBody String str) {
+    public JSONObject authCard(@RequestBody String str) {
 
         JSONParser parser = new JSONParser();
         JSONObject json = null;
@@ -123,14 +123,17 @@ public class Controller {
             transactionObj.setCard(new Card(validCard.getId()));
             transactionObj.setResponseCode("00");
             transactionService.saveTransaction(transactionObj);
-            transactionObj.setAmount(validCard.getBalance());
-            return transactionObj;
         }
-        return transactionObj;
+        JSONObject obj = new JSONObject();
+        obj.put("cartNumber", transactionObj.getOriginalCardNumber());
+        obj.put("trackingNumber", transactionObj.getTrackingNumber());
+        obj.put("responseCode", transactionObj.getResponseCode());
+        obj.put("balance", validCard.getBalance());
+        return obj;
     }
 
     @PostMapping(path = "/last10transaction")
-    public List<Transaction> lastTenTransaction(@RequestBody String str) {
+    public JSONObject lastTenTransaction(@RequestBody String str) {
         JSONParser parser = new JSONParser();
         JSONObject json = null;
         try {
@@ -142,7 +145,7 @@ public class Controller {
         String password = String.valueOf(json.get("password"));
         String transactionDate = (String) json.get("transactionDate");
         String terminalType = (String) json.get("terminalType");
-//        Long trackingNumber = (Long) json.get("trackingNumber");
+        Long trackingNumber = (Long) json.get("trackingNumber");
 
         Card cardObj = null;
         Card validCard = null;
@@ -196,20 +199,19 @@ public class Controller {
                 transactionObj.setCard(new Card(validCard.getId()));
                 transactionObj.setResponseCode("00");
                 transactionService.saveTransaction(transactionObj);
-                transactionObj.setId(0L);
-                transactionList.add(transactionObj);
-                return transactionList;
             }
         }
 
-        transactionObj.setId(0L);
-        List<Transaction> invalidTransaction = new ArrayList<>();
-        invalidTransaction.add(transactionObj);
-        return invalidTransaction;
+        JSONObject obj = new JSONObject();
+        obj.put("cartNumber", transactionObj.getOriginalCardNumber());
+        obj.put("trackingNumber", transactionObj.getTrackingNumber());
+        obj.put("responseCode", transactionObj.getResponseCode());
+        obj.put("transactions", transactionList);
+        return obj;
     }
 
     @PostMapping(path = "/cardtocard")
-    public List<Transaction> cardToCard(@RequestBody String str) {
+    public JSONObject cardToCard(@RequestBody String str) {
         JSONParser parser = new JSONParser();
         JSONObject json = null;
         try {
@@ -221,7 +223,7 @@ public class Controller {
         String password = String.valueOf(json.get("password"));
         String transactionDate = (String) json.get("transactionDate");
         String terminalType = (String) json.get("terminalType");
-//        Long trackingNumber = (Long) json.get("trackingNumber");
+        Long trackingNumber = (Long) json.get("trackingNumber");
         Long destinationCardNumber = (Long) json.get("destinationCardNumber");
         Long amount = (Long) json.get("amount");
 
@@ -288,9 +290,6 @@ public class Controller {
                         transactionObj.setAmount(-amount);
                         transactionObj.setCard(new Card(validCard.getId()));
                         transactionService.saveTransaction(transactionObj);
-                        transactionObj.setId(0L);
-                        transactionDest.setOriginalCardNumber(destinationCardNumber);
-                        transactionDest.setId(-1L);
 
                     } else {
                         transactionList = new ArrayList<>();
@@ -313,13 +312,17 @@ public class Controller {
             transactionObj.setResponseCode("15");
             transactionList = new ArrayList<>();
         }
-        transactionList.add(transactionObj);
-        transactionList.add(transactionDest);
-        return transactionList;
+        JSONObject obj = new JSONObject();
+        obj.put("cartNumber", transactionObj.getOriginalCardNumber());
+        obj.put("destinationCardNumber", destinationCardNumber);
+        obj.put("trackingNumber", transactionObj.getTrackingNumber());
+        obj.put("responseCode", transactionObj.getResponseCode());
+        obj.put("transactions", transactionList);
+        return obj;
     }
 
     @PostMapping(path = "/dailytransaction")
-    public List<Transaction> dailyTransaction(@RequestBody String str) {
+    public JSONObject dailyTransaction(@RequestBody String str) {
         JSONParser parser = new JSONParser();
         JSONObject json = null;
         try {
@@ -382,26 +385,32 @@ public class Controller {
         }
 
         if (validCard != null) {
-            transactionList = transactionService.fetchAllByOriginalCardNumberAndTransactionDate(originalCardNumber,
-                    startDate, endDate);
-            if (transactionList != null) {
-                validCard.setBalance(validCard.getBalance() - 1000);
-                cardService.saveCard(validCard);
-
-                transactionObj.setAmount(-1000L);
-                transactionObj.setResponseCode("00");
-                transactionObj.setCard(new Card(cardObj.getId()));
-                transactionService.saveTransaction(transactionObj);
-                transactionObj.setId(0L);
+            if (validCard.getBalance() > 1000) {
+                transactionList = transactionService.fetchAllByOriginalCardNumberAndTransactionDate(originalCardNumber,
+                        startDate, endDate);
+                if (transactionList != null) {
+                    validCard.setBalance(validCard.getBalance() - 1000);
+                    cardService.saveCard(validCard);
+                    transactionObj.setAmount(-1000L);
+                    transactionObj.setResponseCode("00");
+                    transactionObj.setCard(new Card(cardObj.getId()));
+                    transactionService.saveTransaction(transactionObj);
+                } else {
+                    transactionList = new ArrayList<>();
+                }
             } else {
-                transactionList = new ArrayList<>();
+                transactionObj.setResponseCode("51");
             }
         }else {
             transactionObj.setResponseCode("15");
             transactionList = new ArrayList<>();
         }
-        transactionList.add(transactionObj);
-        return transactionList;
+        JSONObject obj = new JSONObject();
+        obj.put("cartNumber", transactionObj.getOriginalCardNumber());
+        obj.put("trackingNumber", transactionObj.getTrackingNumber());
+        obj.put("responseCode", transactionObj.getResponseCode());
+        obj.put("transactions", transactionList);
+        return obj;
     }
 
 }
