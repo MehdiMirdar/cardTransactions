@@ -58,14 +58,20 @@ public class Controller {
     }
 
     @PostMapping(path = "/cardbalance")
-    public Transaction authCard(@RequestBody String str) throws Exception {
+    public Transaction authCard(@RequestBody String str) {
+
         JSONParser parser = new JSONParser();
-        JSONObject json = (JSONObject) parser.parse(str);
+        JSONObject json = null;
+        try {
+            json = (JSONObject) parser.parse(str);
+        } catch (ParseException e) {
+            e.printStackTrace();
+        }
         Long originalCardNumber = (Long) json.get("cardNumber");
         String password = String.valueOf(json.get("password"));
         String transactionDate = (String) json.get("transactionDate");
         String terminalType = (String) json.get("terminalType");
-//        Long trackingNumber = (Long) json.get("trackingNumber");
+        Long trackingNumber = (Long) json.get("trackingNumber");
 
         Card cardObj = null;
         Card validCard = null;
@@ -84,9 +90,19 @@ public class Controller {
             cardObj = cardService.fetchCardByCardNumber(originalCardNumber);
             transactionObj.setCard(new Card(cardObj.getId()));
             boolean passwordValidation = validator.passwordValidation(password);
-            boolean checkLogin = validator.checkLogin(password, originalCardNumber);
+            boolean checkLogin = false;
+            try {
+                checkLogin = validator.checkLogin(password, originalCardNumber);
+            } catch (NoSuchAlgorithmException e) {
+                e.printStackTrace();
+            }
             if (passwordValidation && checkLogin) {
-                String hashedPass = Configuration.passwordHash(password);
+                String hashedPass = null;
+                try {
+                    hashedPass = Configuration.passwordHash(password);
+                } catch (NoSuchAlgorithmException e) {
+                    e.printStackTrace();
+                }
                 validCard = cardService.fetchCardByCardNumberAndPassword(originalCardNumber, hashedPass);
                 validCard.setWrongCount(0);
                 validCard.setMessage("done");
@@ -113,10 +129,15 @@ public class Controller {
         return transactionObj;
     }
 
-    @PostMapping(path = "/lasttentransaction")
-    public List<Transaction> lastTenTransaction(@RequestBody String str) throws Exception {
+    @PostMapping(path = "/last10transaction")
+    public List<Transaction> lastTenTransaction(@RequestBody String str) {
         JSONParser parser = new JSONParser();
-        JSONObject json = (JSONObject) parser.parse(str);
+        JSONObject json = null;
+        try {
+            json = (JSONObject) parser.parse(str);
+        } catch (ParseException e) {
+            e.printStackTrace();
+        }
         Long originalCardNumber = (Long) json.get("cardNumber");
         String password = String.valueOf(json.get("password"));
         String transactionDate = (String) json.get("transactionDate");
@@ -133,7 +154,7 @@ public class Controller {
         transactionObj.setTerminalType(terminalType);
         transactionObj.setTrackingNumber(trackingNum);
         transactionObj.setOriginalCardNumber(originalCardNumber);
-        transactionObj.setTransactionType(0);
+        transactionObj.setTransactionType(1);
 
         boolean cardNumberValidation = validator.cardNumberExisting(originalCardNumber);
 
@@ -141,9 +162,19 @@ public class Controller {
             cardObj = cardService.fetchCardByCardNumber(originalCardNumber);
             transactionObj.setCard(new Card(cardObj.getId()));
             boolean passwordValidation = validator.passwordValidation(password);
-            boolean checkLogin = validator.checkLogin(password, originalCardNumber);
+            boolean checkLogin = false;
+            try {
+                checkLogin = validator.checkLogin(password, originalCardNumber);
+            } catch (NoSuchAlgorithmException e) {
+                e.printStackTrace();
+            }
             if (passwordValidation && checkLogin) {
-                String hashedPass = Configuration.passwordHash(password);
+                String hashedPass = null;
+                try {
+                    hashedPass = Configuration.passwordHash(password);
+                } catch (NoSuchAlgorithmException e) {
+                    e.printStackTrace();
+                }
                 validCard = cardService.fetchCardByCardNumberAndPassword(originalCardNumber, hashedPass);
                 validCard.setWrongCount(0);
                 validCard.setMessage("done");
@@ -177,5 +208,200 @@ public class Controller {
         return invalidTransaction;
     }
 
-    
+    @PostMapping(path = "/cardtocard")
+    public List<Transaction> cardToCard(@RequestBody String str) {
+        JSONParser parser = new JSONParser();
+        JSONObject json = null;
+        try {
+            json = (JSONObject) parser.parse(str);
+        } catch (ParseException e) {
+            e.printStackTrace();
+        }
+        Long originalCardNumber = (Long) json.get("cardNumber");
+        String password = String.valueOf(json.get("password"));
+        String transactionDate = (String) json.get("transactionDate");
+        String terminalType = (String) json.get("terminalType");
+//        Long trackingNumber = (Long) json.get("trackingNumber");
+        Long destinationCardNumber = (Long) json.get("destinationCardNumber");
+        Long amount = (Long) json.get("amount");
+
+        Card cardObj = null;
+        Card validCard = null;
+        Card cardDestination = null;
+        Transaction transactionObj = new Transaction();
+        Transaction transactionDest = new Transaction();
+        List<Transaction> transactionList = null;
+        Long trackingNum = validator.trackingNumberMaker();
+        transactionObj.setAmount(0L);
+        transactionObj.setTransactionDate(transactionDate);
+        transactionObj.setTerminalType(terminalType);
+        transactionObj.setTrackingNumber(trackingNum);
+        transactionObj.setOriginalCardNumber(originalCardNumber);
+        transactionObj.setTransactionType(2);
+
+        boolean cardNumberValidation = validator.cardNumberExisting(originalCardNumber);
+
+        if (cardNumberValidation) {
+            cardObj = cardService.fetchCardByCardNumber(originalCardNumber);
+            transactionObj.setCard(new Card(cardObj.getId()));
+            boolean passwordValidation = validator.passwordValidation(password);
+            boolean checkLogin = false;
+            try {
+                checkLogin = validator.checkLogin(password, originalCardNumber);
+            } catch (NoSuchAlgorithmException e) {
+                e.printStackTrace();
+            }
+            if (passwordValidation && checkLogin) {
+                String hashedPass = null;
+                try {
+                    hashedPass = Configuration.passwordHash(password);
+                } catch (NoSuchAlgorithmException e) {
+                    e.printStackTrace();
+                }
+                validCard = cardService.fetchCardByCardNumberAndPassword(originalCardNumber, hashedPass);
+                validCard.setWrongCount(0);
+                validCard.setMessage("done");
+                cardService.saveCard(validCard);
+            } else {
+                cardObj.setMessage("invalid password");
+                cardObj.setWrongCount(cardObj.getWrongCount() + 1);
+                cardService.saveCard(cardObj);
+                transactionObj.setResponseCode("57");
+                transactionService.saveTransaction(transactionObj);
+            }
+        } else {
+            transactionObj.setResponseCode("15");
+        }
+        if (validCard != null) {
+            if (validCard.getBalance() > amount) {
+                boolean checkDestinationCardNumber = validator.checkDestinationCardNumber(destinationCardNumber);
+                if (checkDestinationCardNumber) {
+                    transactionList = transactionService.fetchLastTen10ByOriginalCardNumber(originalCardNumber);
+                    validCard.setBalance(validCard.getBalance() - amount);
+                    cardService.saveCard(validCard);
+                    cardDestination = cardService.fetchCardByCardNumber(destinationCardNumber);
+                    cardDestination.setBalance(cardDestination.getBalance() + amount);
+                    cardService.saveCard(cardDestination);
+
+                    if (transactionList != null) {
+                        transactionObj.setResponseCode("00");
+                        transactionObj.setAmount(-amount);
+                        transactionObj.setCard(new Card(validCard.getId()));
+                        transactionService.saveTransaction(transactionObj);
+                        transactionObj.setId(0L);
+                        transactionDest.setOriginalCardNumber(destinationCardNumber);
+                        transactionDest.setId(-1L);
+
+                    } else {
+                        transactionList = new ArrayList<>();
+                    }
+
+                } else {
+                    transactionObj.setResponseCode("16");
+                    transactionObj.setCard(new Card(validCard.getId()));
+                    transactionService.saveTransaction(transactionObj);
+                    transactionList = new ArrayList<>();
+                }
+            } else {
+                transactionObj.setResponseCode("51");
+                transactionObj.setCard(new Card(validCard.getId()));
+                transactionService.saveTransaction(transactionObj);
+                transactionList = new ArrayList<>();
+            }
+
+        } else {
+            transactionObj.setResponseCode("15");
+            transactionList = new ArrayList<>();
+        }
+        transactionList.add(transactionObj);
+        transactionList.add(transactionDest);
+        return transactionList;
+    }
+
+    @PostMapping(path = "/dailytransaction")
+    public List<Transaction> dailyTransaction(@RequestBody String str) {
+        JSONParser parser = new JSONParser();
+        JSONObject json = null;
+        try {
+            json = (JSONObject) parser.parse(str);
+        } catch (ParseException e) {
+            e.printStackTrace();
+        }
+        Long originalCardNumber = (Long) json.get("cardNumber");
+        String password = String.valueOf(json.get("password"));
+        String transactionDate = (String) json.get("transactionDate");
+        String terminalType = (String) json.get("terminalType");
+        Long trackingNumber = (Long) json.get("trackingNumber");
+        String startDate = (String) json.get("startDate");
+        String endDate = (String) json.get("endDate");
+
+        Card cardObj = null;
+        Card validCard = null;
+        Transaction transactionObj = new Transaction();
+        List<Transaction> transactionList = null;
+        Long trackingNum = validator.trackingNumberMaker();
+        transactionObj.setAmount(0L);
+        transactionObj.setTransactionDate(transactionDate);
+        transactionObj.setTerminalType(terminalType);
+        transactionObj.setTrackingNumber(trackingNum);
+        transactionObj.setOriginalCardNumber(originalCardNumber);
+        transactionObj.setTransactionType(3);
+
+        boolean cardNumberValidation = validator.cardNumberExisting(originalCardNumber);
+
+        if (cardNumberValidation) {
+            cardObj = cardService.fetchCardByCardNumber(originalCardNumber);
+            transactionObj.setCard(new Card(cardObj.getId()));
+            boolean passwordValidation = validator.passwordValidation(password);
+            boolean checkLogin = false;
+            try {
+                checkLogin = validator.checkLogin(password, originalCardNumber);
+            } catch (NoSuchAlgorithmException e) {
+                e.printStackTrace();
+            }
+            if (passwordValidation && checkLogin) {
+                String hashedPass = null;
+                try {
+                    hashedPass = Configuration.passwordHash(password);
+                } catch (NoSuchAlgorithmException e) {
+                    e.printStackTrace();
+                }
+                validCard = cardService.fetchCardByCardNumberAndPassword(originalCardNumber, hashedPass);
+                validCard.setWrongCount(0);
+                validCard.setMessage("done");
+                cardService.saveCard(validCard);
+            } else {
+                cardObj.setMessage("invalid password");
+                cardObj.setWrongCount(cardObj.getWrongCount() + 1);
+                cardService.saveCard(cardObj);
+                transactionObj.setResponseCode("57");
+                transactionService.saveTransaction(transactionObj);
+            }
+        } else {
+            transactionObj.setResponseCode("15");
+        }
+
+        if (validCard != null) {
+            transactionList = transactionService.fetchAllByOriginalCardNumberAndTransactionDate(originalCardNumber,
+                    startDate, endDate);
+            if (transactionList != null) {
+                validCard.setBalance(validCard.getBalance() - 1000);
+                cardService.saveCard(validCard);
+
+                transactionObj.setAmount(-1000L);
+                transactionObj.setResponseCode("00");
+                transactionObj.setCard(new Card(cardObj.getId()));
+                transactionService.saveTransaction(transactionObj);
+                transactionObj.setId(0L);
+            } else {
+                transactionList = new ArrayList<>();
+            }
+        }else {
+            transactionObj.setResponseCode("15");
+            transactionList = new ArrayList<>();
+        }
+        transactionList.add(transactionObj);
+        return transactionList;
+    }
+
 }

@@ -9,7 +9,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.security.NoSuchAlgorithmException;
-import java.util.Random;
 
 /**
  * this class is the validator for controller methods
@@ -75,5 +74,10 @@ public class Validator {
             }
         }
         return trackingNumber;
+    }
+
+    public boolean checkDestinationCardNumber(Long destinationCardNumber) {
+        Card cardObj = cardService.fetchCardByCardNumber(destinationCardNumber);
+        return cardObj != null;
     }
 }
