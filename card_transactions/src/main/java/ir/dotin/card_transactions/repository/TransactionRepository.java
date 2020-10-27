@@ -6,6 +6,14 @@ import org.springframework.data.jpa.repository.Query;
 
 import java.util.List;
 
+/**
+ * this interface is jpaRepository for transactions
+ *
+ * @author Mehdi Mirdar
+ * @version 1.0
+ * @since 2020-10-26
+ */
+
 public interface TransactionRepository extends JpaRepository<Transaction, Long> {
 
     Transaction findByTrackingNumberAndOriginalCardNumber(

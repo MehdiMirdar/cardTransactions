@@ -5,6 +5,14 @@ import ir.dotin.card_transactions.repository.CardRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+/**
+ * this class is the service class for cards
+ *
+ * @author Mehdi Mirdar
+ * @version 1.0
+ * @since 2020-10-26
+ */
+
 @Service
 public class CardService {
 

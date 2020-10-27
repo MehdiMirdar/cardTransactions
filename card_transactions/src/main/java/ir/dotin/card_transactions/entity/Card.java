@@ -7,6 +7,15 @@ import lombok.ToString;
 import javax.persistence.*;
 import java.util.Set;
 
+/**
+ * this class is the model for cards
+ *
+ * @author Mehdi Mirdar
+ * @version 1.0
+ * @since 2020-10-24
+ */
+
+
 @Entity
 @Table(name = "tbl_card")
 @Getter

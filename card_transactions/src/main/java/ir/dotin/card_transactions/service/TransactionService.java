@@ -7,6 +7,14 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 
+/**
+ * this class is the service class for transactions
+ *
+ * @author Mehdi Mirdar
+ * @version 1.0
+ * @since 2020-10-26
+ */
+
 @Service
 public class TransactionService {
 

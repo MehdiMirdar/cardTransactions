@@ -7,6 +7,14 @@ import lombok.ToString;
 
 import javax.persistence.*;
 
+/**
+ * this class is the model for transactions
+ *
+ * @author Mehdi Mirdar
+ * @version 1.0
+ * @since 2020-10-24
+ */
+
 @Entity
 @Table(name = "tbl_transaction")
 @Getter

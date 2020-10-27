@@ -9,13 +9,19 @@ import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.List;
+
+/**
+ * this class is the Controller
+ *
+ * @author Mehdi Mirdar
+ * @version 1.0
+ * @since 2020-10-27
+ */
 
 @RestController
 public class Controller {
@@ -29,12 +35,21 @@ public class Controller {
     @Autowired
     private TransactionService transactionService;
 
+    /**
+     * <p>this method will register the new card
+     * </p>
+     *
+     * @param card is amount of requested card
+     * @return this method will return the card values after registration
+     * @since 1.0
+     */
+
     @PostMapping(path = "/addnewcard")
     public Card registerCard(@RequestBody Card card) throws NoSuchAlgorithmException {
         Long cardNumber = card.getCardNumber();
         String password = card.getPassword();
         card.setPasswordCondition(1);
-        boolean cardNumberValidation = validator.cardNumberValidation(cardNumber);
+        boolean cardNumberValidation = validator.cardNumberExisting(cardNumber);
         if (cardNumberValidation) {
             boolean passwordValidation = validator.passwordValidation(card.getPassword());
             if (passwordValidation) {
@@ -57,8 +72,17 @@ public class Controller {
         return card;
     }
 
+    /**
+     * <p>this method will response the request about card balance
+     * </p>
+     *
+     * @param str is amount of requested amounts for card balance
+     * @return this method will return the json object for response to client
+     * @since 1.0
+     */
+
     @PostMapping(path = "/cardbalance")
-    public JSONObject authCard(@RequestBody String str) {
+    public JSONObject cardBalance(@RequestBody String str) {
 
         JSONParser parser = new JSONParser();
         JSONObject json = null;
@@ -84,7 +108,7 @@ public class Controller {
         transactionObj.setOriginalCardNumber(originalCardNumber);
         transactionObj.setTransactionType(0);
 
-        boolean cardNumberValidation = validator.cardNumberExisting(originalCardNumber);
+        boolean cardNumberValidation = validator.cardNumberValidation(originalCardNumber);
 
         if (cardNumberValidation) {
             cardObj = cardService.fetchCardByCardNumber(originalCardNumber);
@@ -132,6 +156,15 @@ public class Controller {
         return obj;
     }
 
+    /**
+     * <p>this method will response the request about last 10 transactions
+     * </p>
+     *
+     * @param str is amount of requested amounts for last 10 transactions
+     * @return this method will return the json object for response to client
+     * @since 1.0
+     */
+
     @PostMapping(path = "/last10transaction")
     public JSONObject lastTenTransaction(@RequestBody String str) {
         JSONParser parser = new JSONParser();
@@ -159,7 +192,7 @@ public class Controller {
         transactionObj.setOriginalCardNumber(originalCardNumber);
         transactionObj.setTransactionType(1);
 
-        boolean cardNumberValidation = validator.cardNumberExisting(originalCardNumber);
+        boolean cardNumberValidation = validator.cardNumberValidation(originalCardNumber);
 
         if (cardNumberValidation) {
             cardObj = cardService.fetchCardByCardNumber(originalCardNumber);
@@ -210,6 +243,15 @@ public class Controller {
         return obj;
     }
 
+    /**
+     * <p>this method will response the request about card to card
+     * </p>
+     *
+     * @param str is amount of requested amounts for card to card
+     * @return this method will return the json object for response to client
+     * @since 1.0
+     */
+
     @PostMapping(path = "/cardtocard")
     public JSONObject cardToCard(@RequestBody String str) {
         JSONParser parser = new JSONParser();
@@ -241,7 +283,7 @@ public class Controller {
         transactionObj.setOriginalCardNumber(originalCardNumber);
         transactionObj.setTransactionType(2);
 
-        boolean cardNumberValidation = validator.cardNumberExisting(originalCardNumber);
+        boolean cardNumberValidation = validator.cardNumberValidation(originalCardNumber);
 
         if (cardNumberValidation) {
             cardObj = cardService.fetchCardByCardNumber(originalCardNumber);
@@ -321,6 +363,15 @@ public class Controller {
         return obj;
     }
 
+    /**
+     * <p>this method will response the request about daily transactions
+     * </p>
+     *
+     * @param str is amount of requested amounts for daily transactions
+     * @return this method will return the json object for response to client
+     * @since 1.0
+     */
+
     @PostMapping(path = "/dailytransaction")
     public JSONObject dailyTransaction(@RequestBody String str) {
         JSONParser parser = new JSONParser();
@@ -350,7 +401,7 @@ public class Controller {
         transactionObj.setOriginalCardNumber(originalCardNumber);
         transactionObj.setTransactionType(3);
 
-        boolean cardNumberValidation = validator.cardNumberExisting(originalCardNumber);
+        boolean cardNumberValidation = validator.cardNumberValidation(originalCardNumber);
 
         if (cardNumberValidation) {
             cardObj = cardService.fetchCardByCardNumber(originalCardNumber);
