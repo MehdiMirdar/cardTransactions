@@ -12,6 +12,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.security.NoSuchAlgorithmException;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.GregorianCalendar;
 
 /**
  * this class is the validator for controller methods
@@ -107,27 +112,6 @@ public class Validator {
     }
 
     /**
-     * <p>this method will check and make the unique tracking number
-     * </p>
-     *
-     * @return this method will return long value of tracking number
-     * @since 1.0
-     */
-    public Long trackingNumberMaker() {
-        Long trackingNumber = 0L;
-        while (true) {
-            long min = 999999999999L;
-            long max = 10000000000000L;
-            trackingNumber = min + (long) (Math.random() * (max - min));
-            Transaction transactionObj = transactionService.fetchTransactionByTrackingNumber(trackingNumber);
-            if (transactionObj == null) {
-                break;
-            }
-        }
-        return trackingNumber;
-    }
-
-    /**
      * <p>this method will check the destination card number is exist or not
      * </p>
      *
@@ -138,6 +122,36 @@ public class Validator {
     public boolean checkDestinationCardNumber(Long destinationCardNumber) {
         Card cardObj = cardService.fetchCardByCardNumber(destinationCardNumber);
         return cardObj != null;
+    }
+
+    /**
+     * <p>this method will check the date is validate or not
+     * </p>
+     *
+     * @param transactionDate is string amount of date
+     * @return this method will return boolean value after check the transaction date
+     * @since 1.0
+     */
+    public boolean dateValidator(String transactionDate) {
+
+        String pattern = "yyyy-MM-dd";
+        DateFormat dateFormat = new SimpleDateFormat(pattern);
+        Date today = Calendar.getInstance().getTime();
+        String todayAsString = dateFormat.format(today);
+
+        SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd");
+        Date date = new Date();
+        try {
+            date = format.parse(transactionDate);
+        } catch (java.text.ParseException e) {
+            e.printStackTrace();
+        }
+        GregorianCalendar calendar = new GregorianCalendar();
+        calendar.setTime(date);
+        Date date1 = calendar.getTime();
+        String todayFromClient = dateFormat.format(date1);
+
+        return todayFromClient.equals(todayAsString);
     }
 
     /**
@@ -187,6 +201,25 @@ public class Validator {
             transactionService.saveTransaction(transactionObj);
             return cardObj;
         }
-
     }
+
+    /**
+     * <p>this method will validate for repetition of transaction
+     * </p>
+     *
+     * @param originalCardNumber is the number of card.
+     * @param transactionDate is the date of transaction.
+     * @param trackingNumber is the tracking number.
+     * @param terminalType is the type of terminal that send the request.
+     * @return this method will return true or false of repetition transaction.
+     * @since 1.0
+     */
+    public boolean repetitionTransactionValidator(Long originalCardNumber, String transactionDate,
+            Long trackingNumber, String terminalType) {
+
+        Transaction transaction = transactionService.fetchTransactionByOriginalCardNumberAndTransactionDateAndTrackingNumberAndTerminalType(
+                originalCardNumber, transactionDate, trackingNumber, terminalType);
+        return transaction == null;
+    }
+
 }

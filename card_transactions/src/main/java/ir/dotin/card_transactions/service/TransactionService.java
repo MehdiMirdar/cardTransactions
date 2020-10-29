@@ -43,4 +43,10 @@ public class TransactionService {
         return transactionRepository.findDistinctByTransactionDateBetweenAndOriginalCardNumber(originalCardNumber,
                 startDate, endDate);
     }
+
+    public Transaction fetchTransactionByOriginalCardNumberAndTransactionDateAndTrackingNumberAndTerminalType(
+            Long originalCardNumber, String transactionDate, Long trackingNumber, String terminalType) {
+        return transactionRepository.findByOriginalCardNumberAndTransactionDateAndTrackingNumberAndTerminalType(
+                originalCardNumber, transactionDate, trackingNumber, terminalType);
+    }
 }
