@@ -5,6 +5,9 @@ import ir.dotin.card_transactions.entity.Card;
 import ir.dotin.card_transactions.entity.Transaction;
 import ir.dotin.card_transactions.service.CardService;
 import ir.dotin.card_transactions.service.TransactionService;
+import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
+import org.json.simple.parser.ParseException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -135,5 +138,55 @@ public class Validator {
     public boolean checkDestinationCardNumber(Long destinationCardNumber) {
         Card cardObj = cardService.fetchCardByCardNumber(destinationCardNumber);
         return cardObj != null;
+    }
+
+    /**
+     * <p>this method will parse string to json
+     * </p>
+     *
+     * @param str is amount of client request
+     * @return this method will return boolean value after check the destinationCardNumber
+     * @since 1.0
+     */
+    public JSONObject strToJson(String str) throws ParseException {
+
+        JSONParser parser = new JSONParser();
+        JSONObject json = (JSONObject) parser.parse(str);
+        return json;
+    }
+
+    /**
+     * <p>this method will validate for login the card and if the card validate, save it to database
+     * </p>
+     *
+     * @param transactionObj is an object to save transaction during transaction start to end.
+     * @param password is string amount of password.
+     * @return this method will return a card object if it valid or not
+     * @since 1.0
+     */
+    public Card cardValidationAndSave(Transaction transactionObj, String password)
+            throws NoSuchAlgorithmException, NumberFormatException {
+        Card cardObj = cardService.fetchCardByCardNumber(transactionObj.getOriginalCardNumber());
+        transactionObj.setCard(new Card(cardObj.getId()));
+        boolean passwordValidation = passwordValidation(password);
+        boolean checkLogin = checkLogin(password, transactionObj.getOriginalCardNumber());
+
+        if (passwordValidation && checkLogin) {
+            String hashedPass = Configuration.passwordHash(password);;
+
+            Card validCard = cardService.fetchCardByCardNumberAndPassword(transactionObj.getOriginalCardNumber(), hashedPass);
+            validCard.setWrongCount(0);
+            validCard.setMessage("done");
+            cardService.saveCard(validCard);
+            return validCard;
+        } else {
+            cardObj.setMessage("invalid password");
+            cardObj.setWrongCount(cardObj.getWrongCount() + 1);
+            cardService.saveCard(cardObj);
+            transactionObj.setResponseCode("57");
+            transactionService.saveTransaction(transactionObj);
+            return cardObj;
+        }
+
     }
 }
