@@ -80,13 +80,13 @@ public class Controller {
      * @return this method will return the json object for response to client
      * @since 1.0
      */
-
     @PostMapping(path = "/cardbalance")
     public synchronized JSONObject cardBalance(@RequestBody String str) {
 
         JSONObject obj = new JSONObject();
         Card validCard = null;
         Transaction transactionObj = new Transaction();
+        transactionObj.setResponseCode("00");
 
         JSONObject json = null;
         try {
@@ -102,63 +102,84 @@ public class Controller {
                 "".equals((String) json.get("transactionDate")) || (String) json.get("terminalType") == null ||
                 "".equals((String) json.get("terminalType")) || (Long) json.get("trackingNumber") == null) {
             obj.put("responseCode", "12");
-
-        } else {
-
-            Long originalCardNumber = (Long) json.get("cardNumber");
-            String password = String.valueOf(json.get("password"));
-            String transactionDate = (String) json.get("transactionDate");
-            String terminalType = (String) json.get("terminalType");
-            Long trackingNumber = (Long) json.get("trackingNumber");
-
-            boolean dateValidator = validator.dateValidator(transactionDate);
-            if (dateValidator) {
-
-                transactionObj.setAmount(0L);
-                transactionObj.setTransactionDate(transactionDate);
-                transactionObj.setTerminalType(terminalType);
-                transactionObj.setOriginalCardNumber(originalCardNumber);
-                transactionObj.setTransactionType(0);
-                transactionObj.setTrackingNumber(trackingNumber);
-
-                boolean repetitionTransactionValidator = validator.repetitionTransactionValidator(originalCardNumber,
-                        transactionDate, trackingNumber, terminalType);
-                if (!repetitionTransactionValidator){
-                    obj.put("responseCode", "94");
-                    return obj;
-                }
-
-                boolean cardNumberValidation = validator.cardNumberValidation(originalCardNumber);
-
-                if (cardNumberValidation) {
-                    try {
-                        validCard = validator.cardValidationAndSave(transactionObj, password);
-                    } catch (NoSuchAlgorithmException | NumberFormatException e) {
-                        e.printStackTrace();
-                        obj.put("cartNumber", transactionObj.getOriginalCardNumber());
-                        obj.put("responseCode", "80");
-                        return obj;
-                    }
-                } else {
-                    transactionObj.setResponseCode("15");
-                }
-
-                if (validCard != null && validCard.getMessage().equals("done")) {
-
-                    transactionObj.setCard(new Card(validCard.getId()));
-                    transactionObj.setResponseCode("00");
-                    transactionService.saveTransaction(transactionObj);
-                    obj.put("balance", validCard.getBalance());
-                }
-
-                obj.put("cartNumber", transactionObj.getOriginalCardNumber());
-                obj.put("trackingNumber", transactionObj.getTrackingNumber());
-                obj.put("responseCode", transactionObj.getResponseCode());
-            } else {
-
-                obj.put("responseCode", "77");
-            }
+            return obj;
         }
+
+        Long originalCardNumber = (Long) json.get("cardNumber");
+        String password = String.valueOf(json.get("password"));
+        String transactionDate = (String) json.get("transactionDate");
+        String terminalType = (String) json.get("terminalType");
+        Long trackingNumber = (Long) json.get("trackingNumber");
+
+        transactionObj.setAmount(0L);
+        transactionObj.setTransactionDate(transactionDate);
+        transactionObj.setTerminalType(terminalType);
+        transactionObj.setOriginalCardNumber(originalCardNumber);
+        transactionObj.setTransactionType(0);
+        transactionObj.setTrackingNumber(trackingNumber);
+
+        String hashedPass = null;
+        try {
+            boolean cardValidation = validator.cardValidationAndSave(transactionObj, password);
+            if (!cardValidation) {
+                Card cardObj = cardService.fetchCardByCardNumber(transactionObj.getOriginalCardNumber());
+                cardObj.setWrongCount(cardObj.getWrongCount() + 1);
+                cardService.saveCard(cardObj);
+                transactionObj.setResponseCode("57");
+                transactionService.saveTransaction(transactionObj);
+                obj.put("cardNumber", transactionObj.getOriginalCardNumber());
+                obj.put("trackingNumber", transactionObj.getOriginalCardNumber());
+                obj.put("responseCode", transactionObj.getResponseCode());
+                return obj;
+            }
+            hashedPass = Configuration.passwordHash(password);
+        } catch (NoSuchAlgorithmException | NumberFormatException e) {
+            e.printStackTrace();
+            obj.put("responseCode", "80");
+            return obj;
+        }
+
+        validCard = cardService.fetchCardByCardNumberAndPassword(transactionObj.getOriginalCardNumber(), hashedPass);
+
+        boolean dateValidator = validator.dateValidator(transactionDate);
+        if (!dateValidator) {
+            transactionObj.setResponseCode("77");
+            obj.put("cardNumber", originalCardNumber);
+            obj.put("trackingNumber", trackingNumber);
+            obj.put("responseCode", transactionObj.getResponseCode());
+            transactionObj.setCard(new Card(validCard.getId()));
+            transactionService.saveTransaction(transactionObj);
+            return obj;
+        }
+
+        boolean repetitionTransactionValidator = validator.repetitionTransactionValidator(originalCardNumber,
+                transactionDate, trackingNumber, terminalType, transactionObj.getResponseCode());
+        if (!repetitionTransactionValidator) {
+            transactionObj.setResponseCode("94");
+            obj.put("cardNumber", transactionObj.getOriginalCardNumber());
+            obj.put("trackingNumber", transactionObj.getTrackingNumber());
+            obj.put("responseCode", transactionObj.getResponseCode());
+            transactionObj.setCard(new Card(validCard.getId()));
+            transactionService.saveTransaction(transactionObj);
+            return obj;
+        }
+
+        boolean cardNumberValidation = validator.cardNumberValidation(originalCardNumber);
+        if (!cardNumberValidation) {
+            obj.put("cardNumber", transactionObj.getOriginalCardNumber());
+            obj.put("responseCode", "15");
+            return obj;
+        }
+
+        validCard.setWrongCount(0);
+        cardService.saveCard(validCard);
+        transactionObj.setResponseCode("00");
+        transactionService.saveTransaction(transactionObj);
+        obj.put("balance", validCard.getBalance());
+        obj.put("cartNumber", transactionObj.getOriginalCardNumber());
+        obj.put("trackingNumber", transactionObj.getTrackingNumber());
+        obj.put("responseCode", transactionObj.getResponseCode());
+
         return obj;
     }
 
@@ -177,6 +198,7 @@ public class Controller {
         JSONObject obj = new JSONObject();
         Card validCard = null;
         Transaction transactionObj = new Transaction();
+        transactionObj.setResponseCode("00");
         List<Transaction> transactionList = null;
 
         JSONObject json = null;
@@ -194,64 +216,83 @@ public class Controller {
                 "".equals((String) json.get("terminalType")) || (Long) json.get("trackingNumber") == null) {
             obj.put("responseCode", "12");
 
-        } else {
-
-            Long originalCardNumber = (Long) json.get("cardNumber");
-            String password = String.valueOf(json.get("password"));
-            String transactionDate = (String) json.get("transactionDate");
-            String terminalType = (String) json.get("terminalType");
-            Long trackingNumber = (Long) json.get("trackingNumber");
-
-            boolean dateValidator = validator.dateValidator(transactionDate);
-            if (dateValidator) {
-
-                transactionObj.setAmount(0L);
-                transactionObj.setTransactionDate(transactionDate);
-                transactionObj.setTerminalType(terminalType);
-                transactionObj.setOriginalCardNumber(originalCardNumber);
-                transactionObj.setTransactionType(1);
-                transactionObj.setTrackingNumber(trackingNumber);
-
-                boolean repetitionTransactionValidator = validator.repetitionTransactionValidator(originalCardNumber,
-                        transactionDate, trackingNumber, terminalType);
-                if (!repetitionTransactionValidator){
-                    obj.put("responseCode", "94");
-                    return obj;
-                }
-
-                boolean cardNumberValidation = validator.cardNumberValidation(originalCardNumber);
-
-                if (cardNumberValidation) {
-                    try {
-                        validCard = validator.cardValidationAndSave(transactionObj, password);
-                    } catch (NoSuchAlgorithmException | NumberFormatException e) {
-                        e.printStackTrace();
-                        obj.put("cartNumber", transactionObj.getOriginalCardNumber());
-                        obj.put("responseCode", "80");
-                        return obj;
-                    }
-                } else {
-                    transactionObj.setResponseCode("15");
-                }
-
-                if (validCard != null && validCard.getMessage().equals("done")) {
-                    transactionList = transactionService.fetchLastTen10ByOriginalCardNumber(originalCardNumber);
-                    if (transactionList != null) {
-                        transactionObj.setCard(new Card(validCard.getId()));
-                        transactionObj.setResponseCode("00");
-                        transactionService.saveTransaction(transactionObj);
-                    }
-                }
-
-                obj.put("cartNumber", transactionObj.getOriginalCardNumber());
-                obj.put("trackingNumber", transactionObj.getTrackingNumber());
-                obj.put("responseCode", transactionObj.getResponseCode());
-                obj.put("transactions", transactionList);
-            } else {
-
-                obj.put("responseCode", "77");
-            }
         }
+
+        Long originalCardNumber = (Long) json.get("cardNumber");
+        String password = String.valueOf(json.get("password"));
+        String transactionDate = (String) json.get("transactionDate");
+        String terminalType = (String) json.get("terminalType");
+        Long trackingNumber = (Long) json.get("trackingNumber");
+
+        transactionObj.setAmount(0L);
+        transactionObj.setTransactionDate(transactionDate);
+        transactionObj.setTerminalType(terminalType);
+        transactionObj.setOriginalCardNumber(originalCardNumber);
+        transactionObj.setTrackingNumber(trackingNumber);
+        transactionObj.setTransactionType(1);
+
+        String hashedPass = null;
+        try {
+            boolean cardValidation = validator.cardValidationAndSave(transactionObj, password);
+            if (!cardValidation) {
+                Card cardObj = cardService.fetchCardByCardNumber(transactionObj.getOriginalCardNumber());
+                cardObj.setWrongCount(cardObj.getWrongCount() + 1);
+                cardService.saveCard(cardObj);
+                transactionObj.setResponseCode("57");
+                transactionService.saveTransaction(transactionObj);
+                obj.put("cardNumber", transactionObj.getOriginalCardNumber());
+                obj.put("trackingNumber", transactionObj.getOriginalCardNumber());
+                obj.put("responseCode", transactionObj.getResponseCode());
+                return obj;
+            }
+            hashedPass = Configuration.passwordHash(password);
+        } catch (NoSuchAlgorithmException | NumberFormatException e) {
+            e.printStackTrace();
+            obj.put("responseCode", "80");
+            return obj;
+        }
+
+        validCard = cardService.fetchCardByCardNumberAndPassword(transactionObj.getOriginalCardNumber(), hashedPass);
+
+        boolean dateValidator = validator.dateValidator(transactionDate);
+        if (!dateValidator) {
+            transactionObj.setResponseCode("77");
+            obj.put("cardNumber", originalCardNumber);
+            obj.put("trackingNumber", trackingNumber);
+            obj.put("responseCode", transactionObj.getResponseCode());
+            transactionObj.setCard(new Card(validCard.getId()));
+            transactionService.saveTransaction(transactionObj);
+            return obj;
+        }
+
+        boolean repetitionTransactionValidator = validator.repetitionTransactionValidator(originalCardNumber,
+                transactionDate, trackingNumber, terminalType, transactionObj.getResponseCode());
+        if (!repetitionTransactionValidator) {
+            transactionObj.setResponseCode("94");
+            obj.put("cardNumber", transactionObj.getOriginalCardNumber());
+            obj.put("trackingNumber", transactionObj.getTrackingNumber());
+            obj.put("responseCode", transactionObj.getResponseCode());
+            transactionObj.setCard(new Card(validCard.getId()));
+            transactionService.saveTransaction(transactionObj);
+            return obj;
+        }
+
+        boolean cardNumberValidation = validator.cardNumberValidation(originalCardNumber);
+        if (!cardNumberValidation) {
+            obj.put("cardNumber", transactionObj.getOriginalCardNumber());
+            obj.put("responseCode", "15");
+            return obj;
+        }
+
+        transactionList = transactionService.fetchLastTen10ByOriginalCardNumber(originalCardNumber);
+        transactionObj.setCard(new Card(validCard.getId()));
+        transactionObj.setResponseCode("00");
+        transactionService.saveTransaction(transactionObj);
+        obj.put("cartNumber", transactionObj.getOriginalCardNumber());
+        obj.put("trackingNumber", transactionObj.getTrackingNumber());
+        obj.put("responseCode", transactionObj.getResponseCode());
+        obj.put("transactions", transactionList);
+
         return obj;
 
     }
@@ -272,6 +313,7 @@ public class Controller {
         Card validCard = null;
         Card cardDestination = null;
         Transaction transactionObj = new Transaction();
+        transactionObj.setResponseCode("00");
         List<Transaction> transactionList = null;
 
         JSONObject json = null;
@@ -290,97 +332,115 @@ public class Controller {
                 (Long) json.get("destinationCardNumber") == null || (Long) json.get("amount") == null) {
             obj.put("responseCode", "12");
 
-        } else {
+        }
 
-            Long originalCardNumber = (Long) json.get("cardNumber");
-            String password = String.valueOf(json.get("password"));
-            String transactionDate = (String) json.get("transactionDate");
-            String terminalType = (String) json.get("terminalType");
-            Long trackingNumber = (Long) json.get("trackingNumber");
-            Long destinationCardNumber = (Long) json.get("destinationCardNumber");
-            Long amount = (Long) json.get("amount");
+        Long originalCardNumber = (Long) json.get("cardNumber");
+        String password = String.valueOf(json.get("password"));
+        String transactionDate = (String) json.get("transactionDate");
+        String terminalType = (String) json.get("terminalType");
+        Long trackingNumber = (Long) json.get("trackingNumber");
+        Long destinationCardNumber = (Long) json.get("destinationCardNumber");
+        Long amount = (Long) json.get("amount");
 
-            boolean dateValidator = validator.dateValidator(transactionDate);
-            if (dateValidator) {
+        transactionObj.setAmount(0L);
+        transactionObj.setTransactionDate(transactionDate);
+        transactionObj.setTerminalType(terminalType);
+        transactionObj.setOriginalCardNumber(originalCardNumber);
+        transactionObj.setTransactionType(2);
+        transactionObj.setTrackingNumber(trackingNumber);
 
-                transactionObj.setAmount(0L);
-                transactionObj.setTransactionDate(transactionDate);
-                transactionObj.setTerminalType(terminalType);
-                transactionObj.setOriginalCardNumber(originalCardNumber);
-                transactionObj.setTransactionType(2);
-                transactionObj.setTrackingNumber(trackingNumber);
+        String hashedPass = null;
+        try {
+            boolean cardValidation = validator.cardValidationAndSave(transactionObj, password);
+            if (!cardValidation) {
+                Card cardObj = cardService.fetchCardByCardNumber(transactionObj.getOriginalCardNumber());
+                cardObj.setWrongCount(cardObj.getWrongCount() + 1);
+                cardService.saveCard(cardObj);
+                transactionObj.setResponseCode("57");
+                transactionService.saveTransaction(transactionObj);
+                obj.put("cardNumber", transactionObj.getOriginalCardNumber());
+                obj.put("destinationCardNumber", destinationCardNumber);
+                obj.put("trackingNumber", transactionObj.getOriginalCardNumber());
+                obj.put("responseCode", transactionObj.getResponseCode());
+                return obj;
+            }
+            hashedPass = Configuration.passwordHash(password);
+        } catch (NoSuchAlgorithmException | NumberFormatException e) {
+            e.printStackTrace();
+            obj.put("responseCode", "80");
+            return obj;
+        }
 
-                boolean repetitionTransactionValidator = validator.repetitionTransactionValidator(originalCardNumber,
-                        transactionDate, trackingNumber, terminalType);
-                if (!repetitionTransactionValidator){
-                    obj.put("responseCode", "94");
-                    return obj;
-                }
+        validCard = cardService.fetchCardByCardNumberAndPassword(transactionObj.getOriginalCardNumber(), hashedPass);
 
-                boolean cardNumberValidation = validator.cardNumberValidation(originalCardNumber);
+        boolean dateValidator = validator.dateValidator(transactionDate);
+        if (!dateValidator) {
+            transactionObj.setResponseCode("77");
+            obj.put("cardNumber", originalCardNumber);
+            obj.put("trackingNumber", trackingNumber);
+            obj.put("responseCode", transactionObj.getResponseCode());
+            transactionObj.setCard(new Card(validCard.getId()));
+            transactionService.saveTransaction(transactionObj);
+            return obj;
+        }
 
-                if (cardNumberValidation) {
-                    try {
-                        validCard = validator.cardValidationAndSave(transactionObj, password);
-                    } catch (NoSuchAlgorithmException | NumberFormatException e) {
-                        e.printStackTrace();
-                        obj.put("cartNumber", transactionObj.getOriginalCardNumber());
-                        obj.put("responseCode", "80");
-                        return obj;
-                    }
+        boolean repetitionTransactionValidator = validator.repetitionTransactionValidator(originalCardNumber,
+                transactionDate, trackingNumber, terminalType, transactionObj.getResponseCode());
+        if (!repetitionTransactionValidator) {
+            transactionObj.setResponseCode("94");
+            obj.put("cardNumber", transactionObj.getOriginalCardNumber());
+            obj.put("trackingNumber", transactionObj.getTrackingNumber());
+            obj.put("responseCode", transactionObj.getResponseCode());
+            transactionObj.setCard(new Card(validCard.getId()));
+            transactionService.saveTransaction(transactionObj);
+            return obj;
+        }
+
+        boolean cardNumberValidation = validator.cardNumberValidation(originalCardNumber);
+        if (!cardNumberValidation) {
+            obj.put("cardNumber", transactionObj.getOriginalCardNumber());
+            obj.put("responseCode", "15");
+            return obj;
+        }
+
+        if (validCard.getBalance() > amount) {
+            boolean checkDestinationCardNumber = validator.checkDestinationCardNumber(destinationCardNumber);
+            if (checkDestinationCardNumber) {
+                transactionList = transactionService.fetchLastTen10ByOriginalCardNumber(originalCardNumber);
+                validCard.setBalance(validCard.getBalance() - amount);
+                cardService.saveCard(validCard);
+                cardDestination = cardService.fetchCardByCardNumber(destinationCardNumber);
+                cardDestination.setBalance(cardDestination.getBalance() + amount);
+                cardService.saveCard(cardDestination);
+
+                if (transactionList != null) {
+                    transactionObj.setResponseCode("00");
+                    transactionObj.setAmount(-amount);
+                    transactionObj.setCard(new Card(validCard.getId()));
+                    transactionService.saveTransaction(transactionObj);
+
                 } else {
-                    transactionObj.setResponseCode("15");
-                }
-
-                if (validCard != null && validCard.getMessage().equals("done")) {
-                    if (validCard.getBalance() > amount) {
-                        boolean checkDestinationCardNumber = validator.checkDestinationCardNumber(destinationCardNumber);
-                        if (checkDestinationCardNumber) {
-                            transactionList = transactionService.fetchLastTen10ByOriginalCardNumber(originalCardNumber);
-                            validCard.setBalance(validCard.getBalance() - amount);
-                            cardService.saveCard(validCard);
-                            cardDestination = cardService.fetchCardByCardNumber(destinationCardNumber);
-                            cardDestination.setBalance(cardDestination.getBalance() + amount);
-                            cardService.saveCard(cardDestination);
-
-                            if (transactionList != null) {
-                                transactionObj.setResponseCode("00");
-                                transactionObj.setAmount(-amount);
-                                transactionObj.setCard(new Card(validCard.getId()));
-                                transactionService.saveTransaction(transactionObj);
-
-                            } else {
-                                transactionList = new ArrayList<>();
-                            }
-
-                        } else {
-                            transactionObj.setResponseCode("16");
-                            transactionObj.setCard(new Card(validCard.getId()));
-                            transactionService.saveTransaction(transactionObj);
-                            transactionList = new ArrayList<>();
-                        }
-                    } else {
-                        transactionObj.setResponseCode("51");
-                        transactionObj.setCard(new Card(validCard.getId()));
-                        transactionService.saveTransaction(transactionObj);
-                        transactionList = new ArrayList<>();
-                    }
-
-                } else {
-                    transactionObj.setResponseCode("15");
                     transactionList = new ArrayList<>();
                 }
 
-                obj.put("cartNumber", transactionObj.getOriginalCardNumber());
-                obj.put("destinationCardNumber", destinationCardNumber);
-                obj.put("trackingNumber", transactionObj.getTrackingNumber());
-                obj.put("responseCode", transactionObj.getResponseCode());
-                obj.put("transactions", transactionList);
             } else {
-
-                obj.put("responseCode", "77");
+                transactionObj.setResponseCode("16");
+                transactionObj.setCard(new Card(validCard.getId()));
+                transactionService.saveTransaction(transactionObj);
+                transactionList = new ArrayList<>();
             }
+        } else {
+            transactionObj.setResponseCode("51");
+            transactionObj.setCard(new Card(validCard.getId()));
+            transactionService.saveTransaction(transactionObj);
+            transactionList = new ArrayList<>();
         }
+        obj.put("cartNumber", transactionObj.getOriginalCardNumber());
+        obj.put("destinationCardNumber", destinationCardNumber);
+        obj.put("trackingNumber", transactionObj.getTrackingNumber());
+        obj.put("responseCode", transactionObj.getResponseCode());
+        obj.put("transactions", transactionList);
+
         return obj;
     }
 
@@ -399,6 +459,7 @@ public class Controller {
         JSONObject obj = new JSONObject();
         Card validCard = null;
         Transaction transactionObj = new Transaction();
+        transactionObj.setResponseCode("00");
         List<Transaction> transactionList = null;
 
         JSONObject json = null;
@@ -418,79 +479,98 @@ public class Controller {
                 "".equals((String) json.get("endDate")) || (String) json.get("endDate") == null) {
             obj.put("responseCode", "12");
 
-        } else {
-
-            Long originalCardNumber = (Long) json.get("cardNumber");
-            String password = String.valueOf(json.get("password"));
-            String transactionDate = (String) json.get("transactionDate");
-            String terminalType = (String) json.get("terminalType");
-            Long trackingNumber = (Long) json.get("trackingNumber");
-            String startDate = (String) json.get("startDate");
-            String endDate = (String) json.get("endDate");
-
-            boolean dateValidator = validator.dateValidator(transactionDate);
-            if (dateValidator) {
-
-                transactionObj.setAmount(0L);
-                transactionObj.setTransactionDate(transactionDate);
-                transactionObj.setTerminalType(terminalType);
-                transactionObj.setOriginalCardNumber(originalCardNumber);
-                transactionObj.setTransactionType(3);
-                transactionObj.setTrackingNumber(trackingNumber);
-
-                boolean repetitionTransactionValidator = validator.repetitionTransactionValidator(originalCardNumber,
-                        transactionDate, trackingNumber, terminalType);
-                if (!repetitionTransactionValidator){
-                    obj.put("responseCode", "94");
-                    return obj;
-                }
-
-                boolean cardNumberValidation = validator.cardNumberValidation(originalCardNumber);
-
-                if (cardNumberValidation) {
-
-                    try {
-                        validCard = validator.cardValidationAndSave(transactionObj, password);
-                    } catch (NoSuchAlgorithmException | NumberFormatException e) {
-                        e.printStackTrace();
-                        obj.put("cartNumber", transactionObj.getOriginalCardNumber());
-                        obj.put("responseCode", "80");
-                        return obj;
-                    }
-                } else {
-                    transactionObj.setResponseCode("15");
-                }
-
-                if (validCard != null && validCard.getMessage().equals("done")) {
-                    if (validCard.getBalance() > 1000) {
-                        transactionList = transactionService.fetchAllByOriginalCardNumberAndTransactionDate(originalCardNumber,
-                                startDate, endDate);
-                        if (transactionList != null) {
-                            validCard.setBalance(validCard.getBalance() - 1000);
-                            cardService.saveCard(validCard);
-                            transactionObj.setAmount(-1000L);
-                            transactionObj.setResponseCode("00");
-                            transactionObj.setCard(new Card(validCard.getId()));
-                            transactionService.saveTransaction(transactionObj);
-                        } else {
-                            transactionList = new ArrayList<>();
-                        }
-                    } else {
-                        transactionObj.setResponseCode("51");
-                    }
-                } else {
-                    transactionObj.setResponseCode("15");
-                    transactionList = new ArrayList<>();
-                }
-                obj.put("cartNumber", transactionObj.getOriginalCardNumber());
-                obj.put("trackingNumber", transactionObj.getTrackingNumber());
-                obj.put("responseCode", transactionObj.getResponseCode());
-                obj.put("transactions", transactionList);
-            } else {
-
-                obj.put("responseCode", "77");
-            }
         }
+
+        Long originalCardNumber = (Long) json.get("cardNumber");
+        String password = String.valueOf(json.get("password"));
+        String transactionDate = (String) json.get("transactionDate");
+        String terminalType = (String) json.get("terminalType");
+        Long trackingNumber = (Long) json.get("trackingNumber");
+        String startDate = (String) json.get("startDate");
+        String endDate = (String) json.get("endDate");
+
+        transactionObj.setAmount(0L);
+        transactionObj.setTransactionDate(transactionDate);
+        transactionObj.setTerminalType(terminalType);
+        transactionObj.setOriginalCardNumber(originalCardNumber);
+        transactionObj.setTransactionType(3);
+        transactionObj.setTrackingNumber(trackingNumber);
+
+        String hashedPass = null;
+        try {
+            boolean cardValidation = validator.cardValidationAndSave(transactionObj, password);
+            if (!cardValidation) {
+                Card cardObj = cardService.fetchCardByCardNumber(transactionObj.getOriginalCardNumber());
+                cardObj.setWrongCount(cardObj.getWrongCount() + 1);
+                cardService.saveCard(cardObj);
+                transactionObj.setResponseCode("57");
+                transactionService.saveTransaction(transactionObj);
+                obj.put("cardNumber", transactionObj.getOriginalCardNumber());
+                obj.put("trackingNumber", transactionObj.getOriginalCardNumber());
+                obj.put("responseCode", transactionObj.getResponseCode());
+                return obj;
+            }
+            hashedPass = Configuration.passwordHash(password);
+        } catch (NoSuchAlgorithmException | NumberFormatException e) {
+            e.printStackTrace();
+            obj.put("responseCode", "80");
+            return obj;
+        }
+
+        validCard = cardService.fetchCardByCardNumberAndPassword(transactionObj.getOriginalCardNumber(), hashedPass);
+
+        boolean dateValidator = validator.dateValidator(transactionDate);
+        if (!dateValidator) {
+            transactionObj.setResponseCode("77");
+            obj.put("cardNumber", originalCardNumber);
+            obj.put("trackingNumber", trackingNumber);
+            obj.put("responseCode", transactionObj.getResponseCode());
+            transactionObj.setCard(new Card(validCard.getId()));
+            transactionService.saveTransaction(transactionObj);
+            return obj;
+        }
+
+        boolean repetitionTransactionValidator = validator.repetitionTransactionValidator(originalCardNumber,
+                transactionDate, trackingNumber, terminalType, transactionObj.getResponseCode());
+        if (!repetitionTransactionValidator) {
+            transactionObj.setResponseCode("94");
+            obj.put("cardNumber", transactionObj.getOriginalCardNumber());
+            obj.put("trackingNumber", transactionObj.getTrackingNumber());
+            obj.put("responseCode", transactionObj.getResponseCode());
+            transactionObj.setCard(new Card(validCard.getId()));
+            transactionService.saveTransaction(transactionObj);
+            return obj;
+        }
+
+        boolean cardNumberValidation = validator.cardNumberValidation(originalCardNumber);
+        if (!cardNumberValidation) {
+
+            obj.put("cardNumber", transactionObj.getOriginalCardNumber());
+            obj.put("responseCode", "15");
+            return obj;
+        }
+
+        if (validCard.getBalance() > 1000) {
+            transactionList = transactionService.fetchAllByOriginalCardNumberAndTransactionDate(originalCardNumber,
+                    startDate, endDate);
+            if (transactionList != null) {
+                validCard.setBalance(validCard.getBalance() - 1000);
+                cardService.saveCard(validCard);
+                transactionObj.setAmount(-1000L);
+                transactionObj.setResponseCode("00");
+                transactionObj.setCard(new Card(validCard.getId()));
+                transactionService.saveTransaction(transactionObj);
+            } else {
+                transactionList = new ArrayList<>();
+            }
+        } else {
+            transactionObj.setResponseCode("51");
+        }
+        obj.put("cartNumber", transactionObj.getOriginalCardNumber());
+        obj.put("trackingNumber", transactionObj.getTrackingNumber());
+        obj.put("responseCode", transactionObj.getResponseCode());
+        obj.put("transactions", transactionList);
+
         return obj;
     }
 

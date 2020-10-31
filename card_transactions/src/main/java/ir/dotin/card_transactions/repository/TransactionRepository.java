@@ -27,7 +27,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     List<Transaction> findDistinctByTransactionDateBetweenAndOriginalCardNumber(
             Long originalCardNumber, String startDate, String endDate);
 
-    Transaction findByOriginalCardNumberAndTransactionDateAndTrackingNumberAndTerminalType(Long originalCardNumber,
-            String transactionDate, Long trackingNumber, String terminalType);
+    Transaction findByOriginalCardNumberAndTransactionDateAndTrackingNumberAndTerminalTypeAndResponseCode(Long originalCardNumber,
+            String transactionDate, Long trackingNumber, String terminalType, String responseCode);
 
 }

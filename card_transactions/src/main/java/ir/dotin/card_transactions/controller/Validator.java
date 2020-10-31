@@ -165,8 +165,7 @@ public class Validator {
     public JSONObject strToJson(String str) throws ParseException {
 
         JSONParser parser = new JSONParser();
-        JSONObject json = (JSONObject) parser.parse(str);
-        return json;
+        return (JSONObject) parser.parse(str);
     }
 
     /**
@@ -178,7 +177,7 @@ public class Validator {
      * @return this method will return a card object if it valid or not
      * @since 1.0
      */
-    public Card cardValidationAndSave(Transaction transactionObj, String password)
+    public boolean cardValidationAndSave(Transaction transactionObj, String password)
             throws NoSuchAlgorithmException, NumberFormatException {
         Card cardObj = cardService.fetchCardByCardNumber(transactionObj.getOriginalCardNumber());
         transactionObj.setCard(new Card(cardObj.getId()));
@@ -186,20 +185,11 @@ public class Validator {
         boolean checkLogin = checkLogin(password, transactionObj.getOriginalCardNumber());
 
         if (passwordValidation && checkLogin) {
-            String hashedPass = Configuration.passwordHash(password);;
 
-            Card validCard = cardService.fetchCardByCardNumberAndPassword(transactionObj.getOriginalCardNumber(), hashedPass);
-            validCard.setWrongCount(0);
-            validCard.setMessage("done");
-            cardService.saveCard(validCard);
-            return validCard;
+            return true;
         } else {
-            cardObj.setMessage("invalid password");
-            cardObj.setWrongCount(cardObj.getWrongCount() + 1);
-            cardService.saveCard(cardObj);
-            transactionObj.setResponseCode("57");
-            transactionService.saveTransaction(transactionObj);
-            return cardObj;
+
+            return false;
         }
     }
 
@@ -215,10 +205,11 @@ public class Validator {
      * @since 1.0
      */
     public boolean repetitionTransactionValidator(Long originalCardNumber, String transactionDate,
-            Long trackingNumber, String terminalType) {
+            Long trackingNumber, String terminalType, String responseCode) {
 
-        Transaction transaction = transactionService.fetchTransactionByOriginalCardNumberAndTransactionDateAndTrackingNumberAndTerminalType(
-                originalCardNumber, transactionDate, trackingNumber, terminalType);
+        Transaction transaction =
+                transactionService.fetchTransactionByOriginalCardNumberAndTransactionDateAndTrackingNumberAndTerminalTypeAndResponseCode(
+                originalCardNumber, transactionDate, trackingNumber, terminalType, responseCode);
         return transaction == null;
     }
 
