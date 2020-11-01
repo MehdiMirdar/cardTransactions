@@ -57,18 +57,14 @@ public class Controller {
                 if (balanceValidation) {
                     String pass = Configuration.passwordHash(password);
                     card.setPassword(pass);
-                    card.setMessage("عملیات ثبت به درستی انجام شد");
                     cardService.saveCard(card);
                     card.setPassword(password);
                     return card;
                 }
-                card.setMessage("* مقدار وارد شده برای مبلغ نادرست می باشد و باید بیشتر از 0 باشد");
                 return card;
             }
-            card.setMessage("* رمز وارد شده اشتباه است. رمز باید یک عدد 4 رقمی باشد");
             return card;
         }
-        card.setMessage("* مقدار وارد شده برای شماره کارت نادرست می باشد و یا این شماره کارت قبلا ثبت شده است. این عدد باید 16 رقمی باشد");
         return card;
     }
 
@@ -97,10 +93,10 @@ public class Controller {
             return obj;
         }
 
-        if ((Long) json.get("cardNumber") == null || String.valueOf(json.get("password")) == null
-                || "".equals(String.valueOf(json.get("password"))) || (String) json.get("transactionDate") == null ||
-                "".equals((String) json.get("transactionDate")) || (String) json.get("terminalType") == null ||
-                "".equals((String) json.get("terminalType")) || (Long) json.get("trackingNumber") == null) {
+        if (json.get("cardNumber") == null || json.get("password") == null
+                || "".equals(json.get("password")) || json.get("transactionDate") == null ||
+                "".equals(json.get("transactionDate")) || json.get("terminalType") == null ||
+                "".equals(json.get("terminalType")) || json.get("trackingNumber") == null) {
             obj.put("responseCode", "12");
             return obj;
         }
@@ -118,6 +114,13 @@ public class Controller {
         transactionObj.setTransactionType(0);
         transactionObj.setTrackingNumber(trackingNumber);
 
+        boolean cardNumberValidation = validator.cardNumberValidation(originalCardNumber);
+        if (!cardNumberValidation) {
+            obj.put("cardNumber", transactionObj.getOriginalCardNumber());
+            obj.put("responseCode", "15");
+            return obj;
+        }
+
         String hashedPass = null;
         try {
             boolean cardValidation = validator.cardValidationAndSave(transactionObj, password);
@@ -128,7 +131,7 @@ public class Controller {
                 transactionObj.setResponseCode("57");
                 transactionService.saveTransaction(transactionObj);
                 obj.put("cardNumber", transactionObj.getOriginalCardNumber());
-                obj.put("trackingNumber", transactionObj.getOriginalCardNumber());
+                obj.put("trackingNumber", transactionObj.getTrackingNumber());
                 obj.put("responseCode", transactionObj.getResponseCode());
                 return obj;
             }
@@ -161,13 +164,6 @@ public class Controller {
             obj.put("responseCode", transactionObj.getResponseCode());
             transactionObj.setCard(new Card(validCard.getId()));
             transactionService.saveTransaction(transactionObj);
-            return obj;
-        }
-
-        boolean cardNumberValidation = validator.cardNumberValidation(originalCardNumber);
-        if (!cardNumberValidation) {
-            obj.put("cardNumber", transactionObj.getOriginalCardNumber());
-            obj.put("responseCode", "15");
             return obj;
         }
 
@@ -210,12 +206,12 @@ public class Controller {
             return obj;
         }
 
-        if ((Long) json.get("cardNumber") == null || String.valueOf(json.get("password")) == null
-                || "".equals(String.valueOf(json.get("password"))) || (String) json.get("transactionDate") == null ||
-                "".equals((String) json.get("transactionDate")) || (String) json.get("terminalType") == null ||
-                "".equals((String) json.get("terminalType")) || (Long) json.get("trackingNumber") == null) {
+        if (json.get("cardNumber") == null || json.get("password") == null
+                || "".equals(json.get("password")) || json.get("transactionDate") == null ||
+                "".equals(json.get("transactionDate")) || json.get("terminalType") == null ||
+                "".equals(json.get("terminalType")) || json.get("trackingNumber") == null) {
             obj.put("responseCode", "12");
-
+            return obj;
         }
 
         Long originalCardNumber = (Long) json.get("cardNumber");
@@ -231,6 +227,13 @@ public class Controller {
         transactionObj.setTrackingNumber(trackingNumber);
         transactionObj.setTransactionType(1);
 
+        boolean cardNumberValidation = validator.cardNumberValidation(originalCardNumber);
+        if (!cardNumberValidation) {
+            obj.put("cardNumber", transactionObj.getOriginalCardNumber());
+            obj.put("responseCode", "15");
+            return obj;
+        }
+
         String hashedPass = null;
         try {
             boolean cardValidation = validator.cardValidationAndSave(transactionObj, password);
@@ -241,7 +244,7 @@ public class Controller {
                 transactionObj.setResponseCode("57");
                 transactionService.saveTransaction(transactionObj);
                 obj.put("cardNumber", transactionObj.getOriginalCardNumber());
-                obj.put("trackingNumber", transactionObj.getOriginalCardNumber());
+                obj.put("trackingNumber", transactionObj.getTrackingNumber());
                 obj.put("responseCode", transactionObj.getResponseCode());
                 return obj;
             }
@@ -277,13 +280,8 @@ public class Controller {
             return obj;
         }
 
-        boolean cardNumberValidation = validator.cardNumberValidation(originalCardNumber);
-        if (!cardNumberValidation) {
-            obj.put("cardNumber", transactionObj.getOriginalCardNumber());
-            obj.put("responseCode", "15");
-            return obj;
-        }
-
+        validCard.setWrongCount(0);
+        cardService.saveCard(validCard);
         transactionList = transactionService.fetchLastTen10ByOriginalCardNumber(originalCardNumber);
         transactionObj.setCard(new Card(validCard.getId()));
         transactionObj.setResponseCode("00");
@@ -325,13 +323,13 @@ public class Controller {
             return obj;
         }
 
-        if ((Long) json.get("cardNumber") == null || String.valueOf(json.get("password")) == null
-                || "".equals(String.valueOf(json.get("password"))) || (String) json.get("transactionDate") == null ||
-                "".equals((String) json.get("transactionDate")) || (String) json.get("terminalType") == null ||
-                "".equals((String) json.get("terminalType")) || (Long) json.get("trackingNumber") == null ||
-                (Long) json.get("destinationCardNumber") == null || (Long) json.get("amount") == null) {
+        if (json.get("cardNumber") == null || json.get("destinationCardNumber") == null ||
+                json.get("password") == null || "".equals(json.get("password")) ||
+                json.get("transactionDate") == null || "".equals(json.get("transactionDate")) ||
+                json.get("terminalType") == null || "".equals(json.get("terminalType")) ||
+                json.get("trackingNumber") == null || json.get("amount") == null) {
             obj.put("responseCode", "12");
-
+            return obj;
         }
 
         Long originalCardNumber = (Long) json.get("cardNumber");
@@ -349,6 +347,13 @@ public class Controller {
         transactionObj.setTransactionType(2);
         transactionObj.setTrackingNumber(trackingNumber);
 
+        boolean cardNumberValidation = validator.cardNumberValidation(originalCardNumber);
+        if (!cardNumberValidation) {
+            obj.put("cardNumber", transactionObj.getOriginalCardNumber());
+            obj.put("responseCode", "15");
+            return obj;
+        }
+
         String hashedPass = null;
         try {
             boolean cardValidation = validator.cardValidationAndSave(transactionObj, password);
@@ -360,7 +365,7 @@ public class Controller {
                 transactionService.saveTransaction(transactionObj);
                 obj.put("cardNumber", transactionObj.getOriginalCardNumber());
                 obj.put("destinationCardNumber", destinationCardNumber);
-                obj.put("trackingNumber", transactionObj.getOriginalCardNumber());
+                obj.put("trackingNumber", transactionObj.getTrackingNumber());
                 obj.put("responseCode", transactionObj.getResponseCode());
                 return obj;
             }
@@ -396,18 +401,12 @@ public class Controller {
             return obj;
         }
 
-        boolean cardNumberValidation = validator.cardNumberValidation(originalCardNumber);
-        if (!cardNumberValidation) {
-            obj.put("cardNumber", transactionObj.getOriginalCardNumber());
-            obj.put("responseCode", "15");
-            return obj;
-        }
-
         if (validCard.getBalance() > amount) {
             boolean checkDestinationCardNumber = validator.checkDestinationCardNumber(destinationCardNumber);
             if (checkDestinationCardNumber) {
                 transactionList = transactionService.fetchLastTen10ByOriginalCardNumber(originalCardNumber);
                 validCard.setBalance(validCard.getBalance() - amount);
+                validCard.setWrongCount(0);
                 cardService.saveCard(validCard);
                 cardDestination = cardService.fetchCardByCardNumber(destinationCardNumber);
                 cardDestination.setBalance(cardDestination.getBalance() + amount);
@@ -471,14 +470,14 @@ public class Controller {
             return obj;
         }
 
-        if ((Long) json.get("cardNumber") == null || String.valueOf(json.get("password")) == null
-                || "".equals(String.valueOf(json.get("password"))) || (String) json.get("transactionDate") == null ||
-                "".equals((String) json.get("transactionDate")) || (String) json.get("terminalType") == null ||
-                "".equals((String) json.get("terminalType")) || (Long) json.get("trackingNumber") == null ||
-                "".equals((String) json.get("startDate")) || (String) json.get("startDate") == null ||
-                "".equals((String) json.get("endDate")) || (String) json.get("endDate") == null) {
+        if (json.get("cardNumber") == null || json.get("password") == null
+                || "".equals(json.get("password")) || json.get("transactionDate") == null ||
+                "".equals(json.get("transactionDate")) || json.get("terminalType") == null ||
+                "".equals(json.get("terminalType")) || json.get("trackingNumber") == null ||
+                json.get("startDate") == null || "".equals(json.get("startDate")) ||
+                json.get("endDate") == null || "".equals(json.get("endDate"))) {
             obj.put("responseCode", "12");
-
+            return obj;
         }
 
         Long originalCardNumber = (Long) json.get("cardNumber");
@@ -496,6 +495,13 @@ public class Controller {
         transactionObj.setTransactionType(3);
         transactionObj.setTrackingNumber(trackingNumber);
 
+        boolean cardNumberValidation = validator.cardNumberValidation(originalCardNumber);
+        if (!cardNumberValidation) {
+            obj.put("cardNumber", transactionObj.getOriginalCardNumber());
+            obj.put("responseCode", "15");
+            return obj;
+        }
+
         String hashedPass = null;
         try {
             boolean cardValidation = validator.cardValidationAndSave(transactionObj, password);
@@ -506,7 +512,7 @@ public class Controller {
                 transactionObj.setResponseCode("57");
                 transactionService.saveTransaction(transactionObj);
                 obj.put("cardNumber", transactionObj.getOriginalCardNumber());
-                obj.put("trackingNumber", transactionObj.getOriginalCardNumber());
+                obj.put("trackingNumber", transactionObj.getTrackingNumber());
                 obj.put("responseCode", transactionObj.getResponseCode());
                 return obj;
             }
@@ -542,18 +548,11 @@ public class Controller {
             return obj;
         }
 
-        boolean cardNumberValidation = validator.cardNumberValidation(originalCardNumber);
-        if (!cardNumberValidation) {
-
-            obj.put("cardNumber", transactionObj.getOriginalCardNumber());
-            obj.put("responseCode", "15");
-            return obj;
-        }
-
         if (validCard.getBalance() > 1000) {
             transactionList = transactionService.fetchAllByOriginalCardNumberAndTransactionDate(originalCardNumber,
                     startDate, endDate);
             if (transactionList != null) {
+                validCard.setWrongCount(0);
                 validCard.setBalance(validCard.getBalance() - 1000);
                 cardService.saveCard(validCard);
                 transactionObj.setAmount(-1000L);

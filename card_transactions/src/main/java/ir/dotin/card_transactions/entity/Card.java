@@ -47,8 +47,6 @@ public class Card {
     @Column(name = "wrong_count")
     private int wrongCount;
 
-    private String message;
-
     @OneToMany(cascade = CascadeType.ALL, mappedBy = "card")
     private Set<Transaction> transactions;
 }
