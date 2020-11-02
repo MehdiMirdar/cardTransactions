@@ -11,7 +11,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
  * @version 1.0
  * @since 2020-10-26
  */
-
 public interface CardRepository extends JpaRepository<Card, Long> {
 
     Card findByCardNumber(Long cardNumber);

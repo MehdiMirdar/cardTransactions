@@ -13,13 +13,7 @@ import java.util.List;
  * @version 1.0
  * @since 2020-10-26
  */
-
 public interface TransactionRepository extends JpaRepository<Transaction, Long> {
-
-    Transaction findByTrackingNumberAndOriginalCardNumber(
-            Long trackingNumber, Long originalCardNumber);
-
-    Transaction findByTrackingNumber(Long trackingNumber);
 
     List<Transaction> findFirst10ByOriginalCardNumberOrderByIdDesc(Long cardNumber);
 
@@ -28,6 +22,6 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
             Long originalCardNumber, String startDate, String endDate);
 
     Transaction findByOriginalCardNumberAndTransactionDateAndTrackingNumberAndTerminalTypeAndResponseCode(Long originalCardNumber,
-            String transactionDate, Long trackingNumber, String terminalType, String responseCode);
+                                                                                                          String transactionDate, Long trackingNumber, String terminalType, String responseCode);
 
 }

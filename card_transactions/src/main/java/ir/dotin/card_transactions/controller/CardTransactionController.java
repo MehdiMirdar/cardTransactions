@@ -5,6 +5,7 @@ import ir.dotin.card_transactions.entity.Card;
 import ir.dotin.card_transactions.entity.Transaction;
 import ir.dotin.card_transactions.service.CardService;
 import ir.dotin.card_transactions.service.TransactionService;
+import ir.dotin.card_transactions.validation.*;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.ParseException;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,27 +14,49 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.security.NoSuchAlgorithmException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
- * this class is the Controller
+ * this class is the Controller for card transaction
  *
  * @author Mehdi Mirdar
  * @version 1.0
  * @since 2020-10-27
  */
-
 @RestController
-public class Controller {
+public class CardTransactionController {
+    private final LoginValidation loginValidation;
+    private final CardService cardService;
+    private final TransactionService transactionService;
+    private final CardNumberExisting cardNumberExisting;
+    private final PasswordValidation passwordValidation;
+    private final BalanceValidation balanceValidation;
+    private final Configuration configuration;
+    private final TransactionRepetitionValidation transactionRepetitionValidation;
+    private final DateValidation dateValidation;
+    private final DestinationCardNumberValidation destinationCardNumberValidation;
+    private final OriginalCardNumberValidation originalCardNumberValidation;
 
     @Autowired
-    private Validator validator;
-
-    @Autowired
-    private CardService cardService;
-
-    @Autowired
-    private TransactionService transactionService;
+    public CardTransactionController(LoginValidation loginValidation, CardService cardService, TransactionService transactionService,
+                                     CardNumberExisting cardNumberExisting, PasswordValidation passwordValidation,
+                                     BalanceValidation balanceValidation, Configuration configuration,
+                                     TransactionRepetitionValidation transactionRepetitionValidation,
+                                     DateValidation dateValidation, DestinationCardNumberValidation destinationCardNumberValidation,
+                                     OriginalCardNumberValidation originalCardNumberValidation) {
+        this.loginValidation = loginValidation;
+        this.cardService = cardService;
+        this.transactionService = transactionService;
+        this.cardNumberExisting = cardNumberExisting;
+        this.passwordValidation = passwordValidation;
+        this.balanceValidation = balanceValidation;
+        this.configuration = configuration;
+        this.transactionRepetitionValidation = transactionRepetitionValidation;
+        this.dateValidation = dateValidation;
+        this.destinationCardNumberValidation = destinationCardNumberValidation;
+        this.originalCardNumberValidation = originalCardNumberValidation;
+    }
 
     /**
      * <p>this method will register the new card
@@ -43,28 +66,23 @@ public class Controller {
      * @return this method will return the card values after registration
      * @since 1.0
      */
-
     @PostMapping(path = "/addnewcard")
     public Card registerCard(@RequestBody Card card) throws NoSuchAlgorithmException {
-        Long cardNumber = card.getCardNumber();
         String password = card.getPassword();
         card.setPasswordCondition(1);
-        boolean cardNumberValidation = validator.cardNumberExisting(cardNumber);
-        if (cardNumberValidation) {
-            boolean passwordValidation = validator.passwordValidation(card.getPassword());
-            if (passwordValidation) {
-                boolean balanceValidation = validator.balanceValidation(card.getBalance());
-                if (balanceValidation) {
-                    String pass = Configuration.passwordHash(password);
-                    card.setPassword(pass);
-                    cardService.saveCard(card);
-                    card.setPassword(password);
-                    return card;
-                }
-                return card;
+        List<ICardValidation> validators = new ArrayList<ICardValidation>();
+        validators.add(cardNumberExisting);
+        validators.add(passwordValidation);
+        validators.add(balanceValidation);
+        for (ICardValidation validator : validators) {
+            if (!validator.validate(card)) {
+                throw new RuntimeException("Validator " + validator.getClass().getSimpleName() + " returns false.");
             }
-            return card;
         }
+        String pass = configuration.hashPassword(password);
+        card.setPassword(pass);
+        cardService.saveCard(card);
+        card.setPassword(password);
         return card;
     }
 
@@ -77,8 +95,7 @@ public class Controller {
      * @since 1.0
      */
     @PostMapping(path = "/cardbalance")
-    public synchronized JSONObject cardBalance(@RequestBody String str) {
-
+    public JSONObject cardBalance(@RequestBody String str) {
         JSONObject obj = new JSONObject();
         Card validCard = null;
         Transaction transactionObj = new Transaction();
@@ -86,7 +103,7 @@ public class Controller {
 
         JSONObject json = null;
         try {
-            json = validator.strToJson(str);
+            json = configuration.strToJson(str);
         } catch (ParseException e) {
             e.printStackTrace();
             obj.put("responseCode", "80");
@@ -106,7 +123,6 @@ public class Controller {
         String transactionDate = (String) json.get("transactionDate");
         String terminalType = (String) json.get("terminalType");
         Long trackingNumber = (Long) json.get("trackingNumber");
-
         transactionObj.setAmount(0L);
         transactionObj.setTransactionDate(transactionDate);
         transactionObj.setTerminalType(terminalType);
@@ -114,7 +130,7 @@ public class Controller {
         transactionObj.setTransactionType(0);
         transactionObj.setTrackingNumber(trackingNumber);
 
-        boolean cardNumberValidation = validator.cardNumberValidation(originalCardNumber);
+        boolean cardNumberValidation = originalCardNumberValidation.cardNumberValidation(originalCardNumber);
         if (!cardNumberValidation) {
             obj.put("cardNumber", transactionObj.getOriginalCardNumber());
             obj.put("responseCode", "15");
@@ -123,7 +139,7 @@ public class Controller {
 
         String hashedPass = null;
         try {
-            boolean cardValidation = validator.cardValidationAndSave(transactionObj, password);
+            boolean cardValidation = loginValidation.cardValidator(transactionObj, password);
             if (!cardValidation) {
                 Card cardObj = cardService.fetchCardByCardNumber(transactionObj.getOriginalCardNumber());
                 cardObj.setWrongCount(cardObj.getWrongCount() + 1);
@@ -135,7 +151,7 @@ public class Controller {
                 obj.put("responseCode", transactionObj.getResponseCode());
                 return obj;
             }
-            hashedPass = Configuration.passwordHash(password);
+            hashedPass = configuration.hashPassword(password);
         } catch (NoSuchAlgorithmException | NumberFormatException e) {
             e.printStackTrace();
             obj.put("responseCode", "80");
@@ -143,8 +159,7 @@ public class Controller {
         }
 
         validCard = cardService.fetchCardByCardNumberAndPassword(transactionObj.getOriginalCardNumber(), hashedPass);
-
-        boolean dateValidator = validator.dateValidator(transactionDate);
+        boolean dateValidator = dateValidation.dateValidator(transactionDate);
         if (!dateValidator) {
             transactionObj.setResponseCode("77");
             obj.put("cardNumber", originalCardNumber);
@@ -152,10 +167,12 @@ public class Controller {
             obj.put("responseCode", transactionObj.getResponseCode());
             transactionObj.setCard(new Card(validCard.getId()));
             transactionService.saveTransaction(transactionObj);
+            validCard.setWrongCount(0);
+            cardService.saveCard(validCard);
             return obj;
         }
 
-        boolean repetitionTransactionValidator = validator.repetitionTransactionValidator(originalCardNumber,
+        boolean repetitionTransactionValidator = transactionRepetitionValidation.repetitionTransactionValidator(originalCardNumber,
                 transactionDate, trackingNumber, terminalType, transactionObj.getResponseCode());
         if (!repetitionTransactionValidator) {
             transactionObj.setResponseCode("94");
@@ -164,6 +181,8 @@ public class Controller {
             obj.put("responseCode", transactionObj.getResponseCode());
             transactionObj.setCard(new Card(validCard.getId()));
             transactionService.saveTransaction(transactionObj);
+            validCard.setWrongCount(0);
+            cardService.saveCard(validCard);
             return obj;
         }
 
@@ -175,7 +194,6 @@ public class Controller {
         obj.put("cartNumber", transactionObj.getOriginalCardNumber());
         obj.put("trackingNumber", transactionObj.getTrackingNumber());
         obj.put("responseCode", transactionObj.getResponseCode());
-
         return obj;
     }
 
@@ -189,8 +207,7 @@ public class Controller {
      */
 
     @PostMapping(path = "/last10transaction")
-    public synchronized JSONObject lastTenTransaction(@RequestBody String str) {
-
+    public JSONObject lastTenTransaction(@RequestBody String str) {
         JSONObject obj = new JSONObject();
         Card validCard = null;
         Transaction transactionObj = new Transaction();
@@ -199,7 +216,7 @@ public class Controller {
 
         JSONObject json = null;
         try {
-            json = validator.strToJson(str);
+            json = configuration.strToJson(str);
         } catch (ParseException e) {
             e.printStackTrace();
             obj.put("responseCode", "80");
@@ -227,7 +244,7 @@ public class Controller {
         transactionObj.setTrackingNumber(trackingNumber);
         transactionObj.setTransactionType(1);
 
-        boolean cardNumberValidation = validator.cardNumberValidation(originalCardNumber);
+        boolean cardNumberValidation = originalCardNumberValidation.cardNumberValidation(originalCardNumber);
         if (!cardNumberValidation) {
             obj.put("cardNumber", transactionObj.getOriginalCardNumber());
             obj.put("responseCode", "15");
@@ -236,7 +253,7 @@ public class Controller {
 
         String hashedPass = null;
         try {
-            boolean cardValidation = validator.cardValidationAndSave(transactionObj, password);
+            boolean cardValidation = loginValidation.cardValidator(transactionObj, password);
             if (!cardValidation) {
                 Card cardObj = cardService.fetchCardByCardNumber(transactionObj.getOriginalCardNumber());
                 cardObj.setWrongCount(cardObj.getWrongCount() + 1);
@@ -248,7 +265,7 @@ public class Controller {
                 obj.put("responseCode", transactionObj.getResponseCode());
                 return obj;
             }
-            hashedPass = Configuration.passwordHash(password);
+            hashedPass = configuration.hashPassword(password);
         } catch (NoSuchAlgorithmException | NumberFormatException e) {
             e.printStackTrace();
             obj.put("responseCode", "80");
@@ -256,8 +273,7 @@ public class Controller {
         }
 
         validCard = cardService.fetchCardByCardNumberAndPassword(transactionObj.getOriginalCardNumber(), hashedPass);
-
-        boolean dateValidator = validator.dateValidator(transactionDate);
+        boolean dateValidator = dateValidation.dateValidator(transactionDate);
         if (!dateValidator) {
             transactionObj.setResponseCode("77");
             obj.put("cardNumber", originalCardNumber);
@@ -265,10 +281,12 @@ public class Controller {
             obj.put("responseCode", transactionObj.getResponseCode());
             transactionObj.setCard(new Card(validCard.getId()));
             transactionService.saveTransaction(transactionObj);
+            validCard.setWrongCount(0);
+            cardService.saveCard(validCard);
             return obj;
         }
 
-        boolean repetitionTransactionValidator = validator.repetitionTransactionValidator(originalCardNumber,
+        boolean repetitionTransactionValidator = transactionRepetitionValidation.repetitionTransactionValidator(originalCardNumber,
                 transactionDate, trackingNumber, terminalType, transactionObj.getResponseCode());
         if (!repetitionTransactionValidator) {
             transactionObj.setResponseCode("94");
@@ -277,6 +295,8 @@ public class Controller {
             obj.put("responseCode", transactionObj.getResponseCode());
             transactionObj.setCard(new Card(validCard.getId()));
             transactionService.saveTransaction(transactionObj);
+            validCard.setWrongCount(0);
+            cardService.saveCard(validCard);
             return obj;
         }
 
@@ -290,7 +310,6 @@ public class Controller {
         obj.put("trackingNumber", transactionObj.getTrackingNumber());
         obj.put("responseCode", transactionObj.getResponseCode());
         obj.put("transactions", transactionList);
-
         return obj;
 
     }
@@ -305,8 +324,7 @@ public class Controller {
      */
 
     @PostMapping(path = "/cardtocard")
-    public synchronized JSONObject cardToCard(@RequestBody String str) {
-
+    public JSONObject cardToCard(@RequestBody String str) {
         JSONObject obj = new JSONObject();
         Card validCard = null;
         Card cardDestination = null;
@@ -316,7 +334,7 @@ public class Controller {
 
         JSONObject json = null;
         try {
-            json = validator.strToJson(str);
+            json = configuration.strToJson(str);
         } catch (ParseException e) {
             e.printStackTrace();
             obj.put("responseCode", "80");
@@ -347,7 +365,7 @@ public class Controller {
         transactionObj.setTransactionType(2);
         transactionObj.setTrackingNumber(trackingNumber);
 
-        boolean cardNumberValidation = validator.cardNumberValidation(originalCardNumber);
+        boolean cardNumberValidation = originalCardNumberValidation.cardNumberValidation(originalCardNumber);
         if (!cardNumberValidation) {
             obj.put("cardNumber", transactionObj.getOriginalCardNumber());
             obj.put("responseCode", "15");
@@ -356,7 +374,7 @@ public class Controller {
 
         String hashedPass = null;
         try {
-            boolean cardValidation = validator.cardValidationAndSave(transactionObj, password);
+            boolean cardValidation = loginValidation.cardValidator(transactionObj, password);
             if (!cardValidation) {
                 Card cardObj = cardService.fetchCardByCardNumber(transactionObj.getOriginalCardNumber());
                 cardObj.setWrongCount(cardObj.getWrongCount() + 1);
@@ -369,7 +387,7 @@ public class Controller {
                 obj.put("responseCode", transactionObj.getResponseCode());
                 return obj;
             }
-            hashedPass = Configuration.passwordHash(password);
+            hashedPass = configuration.hashPassword(password);
         } catch (NoSuchAlgorithmException | NumberFormatException e) {
             e.printStackTrace();
             obj.put("responseCode", "80");
@@ -377,8 +395,7 @@ public class Controller {
         }
 
         validCard = cardService.fetchCardByCardNumberAndPassword(transactionObj.getOriginalCardNumber(), hashedPass);
-
-        boolean dateValidator = validator.dateValidator(transactionDate);
+        boolean dateValidator = dateValidation.dateValidator(transactionDate);
         if (!dateValidator) {
             transactionObj.setResponseCode("77");
             obj.put("cardNumber", originalCardNumber);
@@ -386,10 +403,12 @@ public class Controller {
             obj.put("responseCode", transactionObj.getResponseCode());
             transactionObj.setCard(new Card(validCard.getId()));
             transactionService.saveTransaction(transactionObj);
+            validCard.setWrongCount(0);
+            cardService.saveCard(validCard);
             return obj;
         }
 
-        boolean repetitionTransactionValidator = validator.repetitionTransactionValidator(originalCardNumber,
+        boolean repetitionTransactionValidator = transactionRepetitionValidation.repetitionTransactionValidator(originalCardNumber,
                 transactionDate, trackingNumber, terminalType, transactionObj.getResponseCode());
         if (!repetitionTransactionValidator) {
             transactionObj.setResponseCode("94");
@@ -398,20 +417,19 @@ public class Controller {
             obj.put("responseCode", transactionObj.getResponseCode());
             transactionObj.setCard(new Card(validCard.getId()));
             transactionService.saveTransaction(transactionObj);
+            validCard.setWrongCount(0);
+            cardService.saveCard(validCard);
             return obj;
         }
 
         if (validCard.getBalance() > amount) {
-            boolean checkDestinationCardNumber = validator.checkDestinationCardNumber(destinationCardNumber);
+            boolean checkDestinationCardNumber = destinationCardNumberValidation.destinationCardNumberValidator(destinationCardNumber);
             if (checkDestinationCardNumber) {
                 transactionList = transactionService.fetchLastTen10ByOriginalCardNumber(originalCardNumber);
                 validCard.setBalance(validCard.getBalance() - amount);
-                validCard.setWrongCount(0);
-                cardService.saveCard(validCard);
                 cardDestination = cardService.fetchCardByCardNumber(destinationCardNumber);
                 cardDestination.setBalance(cardDestination.getBalance() + amount);
                 cardService.saveCard(cardDestination);
-
                 if (transactionList != null) {
                     transactionObj.setResponseCode("00");
                     transactionObj.setAmount(-amount);
@@ -434,12 +452,13 @@ public class Controller {
             transactionService.saveTransaction(transactionObj);
             transactionList = new ArrayList<>();
         }
+        validCard.setWrongCount(0);
+        cardService.saveCard(validCard);
         obj.put("cartNumber", transactionObj.getOriginalCardNumber());
         obj.put("destinationCardNumber", destinationCardNumber);
         obj.put("trackingNumber", transactionObj.getTrackingNumber());
         obj.put("responseCode", transactionObj.getResponseCode());
         obj.put("transactions", transactionList);
-
         return obj;
     }
 
@@ -453,8 +472,7 @@ public class Controller {
      */
 
     @PostMapping(path = "/dailytransaction")
-    public synchronized JSONObject dailyTransaction(@RequestBody String str) {
-
+    public JSONObject dailyTransaction(@RequestBody String str) {
         JSONObject obj = new JSONObject();
         Card validCard = null;
         Transaction transactionObj = new Transaction();
@@ -463,7 +481,7 @@ public class Controller {
 
         JSONObject json = null;
         try {
-            json = validator.strToJson(str);
+            json = configuration.strToJson(str);
         } catch (ParseException e) {
             e.printStackTrace();
             obj.put("responseCode", "80");
@@ -495,7 +513,7 @@ public class Controller {
         transactionObj.setTransactionType(3);
         transactionObj.setTrackingNumber(trackingNumber);
 
-        boolean cardNumberValidation = validator.cardNumberValidation(originalCardNumber);
+        boolean cardNumberValidation = originalCardNumberValidation.cardNumberValidation(originalCardNumber);
         if (!cardNumberValidation) {
             obj.put("cardNumber", transactionObj.getOriginalCardNumber());
             obj.put("responseCode", "15");
@@ -504,7 +522,7 @@ public class Controller {
 
         String hashedPass = null;
         try {
-            boolean cardValidation = validator.cardValidationAndSave(transactionObj, password);
+            boolean cardValidation = loginValidation.cardValidator(transactionObj, password);
             if (!cardValidation) {
                 Card cardObj = cardService.fetchCardByCardNumber(transactionObj.getOriginalCardNumber());
                 cardObj.setWrongCount(cardObj.getWrongCount() + 1);
@@ -516,7 +534,7 @@ public class Controller {
                 obj.put("responseCode", transactionObj.getResponseCode());
                 return obj;
             }
-            hashedPass = Configuration.passwordHash(password);
+            hashedPass = configuration.hashPassword(password);
         } catch (NoSuchAlgorithmException | NumberFormatException e) {
             e.printStackTrace();
             obj.put("responseCode", "80");
@@ -524,8 +542,7 @@ public class Controller {
         }
 
         validCard = cardService.fetchCardByCardNumberAndPassword(transactionObj.getOriginalCardNumber(), hashedPass);
-
-        boolean dateValidator = validator.dateValidator(transactionDate);
+        boolean dateValidator = dateValidation.dateValidator(transactionDate);
         if (!dateValidator) {
             transactionObj.setResponseCode("77");
             obj.put("cardNumber", originalCardNumber);
@@ -533,10 +550,12 @@ public class Controller {
             obj.put("responseCode", transactionObj.getResponseCode());
             transactionObj.setCard(new Card(validCard.getId()));
             transactionService.saveTransaction(transactionObj);
+            validCard.setWrongCount(0);
+            cardService.saveCard(validCard);
             return obj;
         }
 
-        boolean repetitionTransactionValidator = validator.repetitionTransactionValidator(originalCardNumber,
+        boolean repetitionTransactionValidator = transactionRepetitionValidation.repetitionTransactionValidator(originalCardNumber,
                 transactionDate, trackingNumber, terminalType, transactionObj.getResponseCode());
         if (!repetitionTransactionValidator) {
             transactionObj.setResponseCode("94");
@@ -545,6 +564,8 @@ public class Controller {
             obj.put("responseCode", transactionObj.getResponseCode());
             transactionObj.setCard(new Card(validCard.getId()));
             transactionService.saveTransaction(transactionObj);
+            validCard.setWrongCount(0);
+            cardService.saveCard(validCard);
             return obj;
         }
 
@@ -552,9 +573,7 @@ public class Controller {
             transactionList = transactionService.fetchAllByOriginalCardNumberAndTransactionDate(originalCardNumber,
                     startDate, endDate);
             if (transactionList != null) {
-                validCard.setWrongCount(0);
                 validCard.setBalance(validCard.getBalance() - 1000);
-                cardService.saveCard(validCard);
                 transactionObj.setAmount(-1000L);
                 transactionObj.setResponseCode("00");
                 transactionObj.setCard(new Card(validCard.getId()));
@@ -565,12 +584,12 @@ public class Controller {
         } else {
             transactionObj.setResponseCode("51");
         }
+        validCard.setWrongCount(0);
+        cardService.saveCard(validCard);
         obj.put("cartNumber", transactionObj.getOriginalCardNumber());
         obj.put("trackingNumber", transactionObj.getTrackingNumber());
         obj.put("responseCode", transactionObj.getResponseCode());
         obj.put("transactions", transactionList);
-
         return obj;
     }
-
 }

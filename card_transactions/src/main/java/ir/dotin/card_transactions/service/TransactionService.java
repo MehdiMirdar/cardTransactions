@@ -14,24 +14,17 @@ import java.util.List;
  * @version 1.0
  * @since 2020-10-26
  */
-
 @Service
 public class TransactionService {
+    private final TransactionRepository transactionRepository;
 
     @Autowired
-    TransactionRepository transactionRepository;
+    public TransactionService(TransactionRepository transactionRepository) {
+        this.transactionRepository = transactionRepository;
+    }
 
     public Transaction saveTransaction(Transaction transaction) {
         return transactionRepository.save(transaction);
-    }
-
-    public Transaction fetchTransactionByCardNumberAndTrackingNumber(
-            Long trackingNumber, Long originalCardNumber) {
-        return transactionRepository.findByTrackingNumberAndOriginalCardNumber(trackingNumber, originalCardNumber);
-    }
-
-    public Transaction fetchTransactionByTrackingNumber(Long trackingNumber) {
-        return transactionRepository.findByTrackingNumber(trackingNumber);
     }
 
     public List<Transaction> fetchLastTen10ByOriginalCardNumber(Long originalCardNumber) {

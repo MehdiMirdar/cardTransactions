@@ -14,15 +14,12 @@ import java.util.Set;
  * @version 1.0
  * @since 2020-10-24
  */
-
-
 @Entity
 @Table(name = "tbl_card")
 @Getter
 @Setter
 @ToString
 public class Card {
-
     public Card() {
     }
 
@@ -33,20 +30,14 @@ public class Card {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-
     @Column(name = "card_number")
     private Long cardNumber;
-
     private Long balance;
-
     private String password;
-
     @Column(name = "password_condition")
     private int passwordCondition;
-
     @Column(name = "wrong_count")
     private int wrongCount;
-
-    @OneToMany(cascade = CascadeType.ALL, mappedBy = "card")
+    @OneToMany(cascade = {CascadeType.PERSIST, CascadeType.REFRESH, CascadeType.MERGE, CascadeType.DETACH}, mappedBy = "card")
     private Set<Transaction> transactions;
 }

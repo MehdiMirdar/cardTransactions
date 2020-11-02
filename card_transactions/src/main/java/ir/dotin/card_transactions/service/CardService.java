@@ -12,12 +12,14 @@ import org.springframework.stereotype.Service;
  * @version 1.0
  * @since 2020-10-26
  */
-
 @Service
 public class CardService {
+    private final CardRepository cardRepository;
 
     @Autowired
-    private CardRepository cardRepository;
+    public CardService(CardRepository cardRepository) {
+        this.cardRepository = cardRepository;
+    }
 
     public Card saveCard(Card card) {
         return cardRepository.save(card);
