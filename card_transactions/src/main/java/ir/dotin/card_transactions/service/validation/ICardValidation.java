@@ -1,4 +1,4 @@
-package ir.dotin.card_transactions.validation;
+package ir.dotin.card_transactions.service.validation;
 
 import ir.dotin.card_transactions.entity.Card;
 

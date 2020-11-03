@@ -1,11 +1,15 @@
 package ir.dotin.card_transactions.controller;
 
 import ir.dotin.card_transactions.config.Configuration;
+import ir.dotin.card_transactions.service.converter.CardConverter;
+import ir.dotin.card_transactions.dto.CardDto;
+import ir.dotin.card_transactions.service.converter.TransactionConverter;
+import ir.dotin.card_transactions.dto.TransactionDto;
 import ir.dotin.card_transactions.entity.Card;
 import ir.dotin.card_transactions.entity.Transaction;
 import ir.dotin.card_transactions.service.CardService;
 import ir.dotin.card_transactions.service.TransactionService;
-import ir.dotin.card_transactions.validation.*;
+import ir.dotin.card_transactions.service.validation.*;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.ParseException;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,6 +30,7 @@ import java.util.List;
  */
 @RestController
 public class CardTransactionController {
+
     private final LoginValidation loginValidation;
     private final CardService cardService;
     private final TransactionService transactionService;
@@ -37,6 +42,8 @@ public class CardTransactionController {
     private final DateValidation dateValidation;
     private final DestinationCardNumberValidation destinationCardNumberValidation;
     private final OriginalCardNumberValidation originalCardNumberValidation;
+    private final CardConverter cardConverter;
+    private final TransactionConverter transactionConverter;
 
     @Autowired
     public CardTransactionController(LoginValidation loginValidation, CardService cardService, TransactionService transactionService,
@@ -44,7 +51,8 @@ public class CardTransactionController {
                                      BalanceValidation balanceValidation, Configuration configuration,
                                      TransactionRepetitionValidation transactionRepetitionValidation,
                                      DateValidation dateValidation, DestinationCardNumberValidation destinationCardNumberValidation,
-                                     OriginalCardNumberValidation originalCardNumberValidation) {
+                                     OriginalCardNumberValidation originalCardNumberValidation,
+                                     CardConverter cardConverter, TransactionConverter transactionConverter) {
         this.loginValidation = loginValidation;
         this.cardService = cardService;
         this.transactionService = transactionService;
@@ -56,18 +64,21 @@ public class CardTransactionController {
         this.dateValidation = dateValidation;
         this.destinationCardNumberValidation = destinationCardNumberValidation;
         this.originalCardNumberValidation = originalCardNumberValidation;
+        this.cardConverter = cardConverter;
+        this.transactionConverter = transactionConverter;
     }
 
     /**
      * <p>this method will register the new card
      * </p>
      *
-     * @param card is amount of requested card
+     * @param dto is amount of requested card
      * @return this method will return the card values after registration
      * @since 1.0
      */
     @PostMapping(path = "/addnewcard")
-    public Card registerCard(@RequestBody Card card) throws NoSuchAlgorithmException {
+    public CardDto registerCard(@RequestBody CardDto dto) throws NoSuchAlgorithmException {
+        Card card = cardConverter.dtoToEntity(dto);
         String password = card.getPassword();
         card.setPasswordCondition(1);
         List<ICardValidation> validators = new ArrayList<ICardValidation>();
@@ -83,7 +94,7 @@ public class CardTransactionController {
         card.setPassword(pass);
         cardService.saveCard(card);
         card.setPassword(password);
-        return card;
+        return cardConverter.entityToDto(card);
     }
 
     /**
@@ -98,8 +109,8 @@ public class CardTransactionController {
     public JSONObject cardBalance(@RequestBody String str) {
         JSONObject obj = new JSONObject();
         Card validCard = null;
-        Transaction transactionObj = new Transaction();
-        transactionObj.setResponseCode("00");
+        TransactionDto transactionObjDto = new TransactionDto();
+        transactionObjDto.setResponseCode("00");
 
         JSONObject json = null;
         try {
@@ -123,12 +134,14 @@ public class CardTransactionController {
         String transactionDate = (String) json.get("transactionDate");
         String terminalType = (String) json.get("terminalType");
         Long trackingNumber = (Long) json.get("trackingNumber");
-        transactionObj.setAmount(0L);
-        transactionObj.setTransactionDate(transactionDate);
-        transactionObj.setTerminalType(terminalType);
-        transactionObj.setOriginalCardNumber(originalCardNumber);
-        transactionObj.setTransactionType(0);
-        transactionObj.setTrackingNumber(trackingNumber);
+        transactionObjDto.setAmount(0L);
+        transactionObjDto.setTransactionDate(transactionDate);
+        transactionObjDto.setTerminalType(terminalType);
+        transactionObjDto.setCardNumber(originalCardNumber);
+        transactionObjDto.setTransactionType(0);
+        transactionObjDto.setTrackingNumber(trackingNumber);
+
+        Transaction transactionObj = transactionConverter.dtoToEntity(transactionObjDto);
 
         boolean cardNumberValidation = originalCardNumberValidation.cardNumberValidation(originalCardNumber);
         if (!cardNumberValidation) {
@@ -210,8 +223,8 @@ public class CardTransactionController {
     public JSONObject lastTenTransaction(@RequestBody String str) {
         JSONObject obj = new JSONObject();
         Card validCard = null;
-        Transaction transactionObj = new Transaction();
-        transactionObj.setResponseCode("00");
+        TransactionDto transactionObjDto = new TransactionDto();
+        transactionObjDto.setResponseCode("00");
         List<Transaction> transactionList = null;
 
         JSONObject json = null;
@@ -237,12 +250,14 @@ public class CardTransactionController {
         String terminalType = (String) json.get("terminalType");
         Long trackingNumber = (Long) json.get("trackingNumber");
 
-        transactionObj.setAmount(0L);
-        transactionObj.setTransactionDate(transactionDate);
-        transactionObj.setTerminalType(terminalType);
-        transactionObj.setOriginalCardNumber(originalCardNumber);
-        transactionObj.setTrackingNumber(trackingNumber);
-        transactionObj.setTransactionType(1);
+        transactionObjDto.setAmount(0L);
+        transactionObjDto.setTransactionDate(transactionDate);
+        transactionObjDto.setTerminalType(terminalType);
+        transactionObjDto.setCardNumber(originalCardNumber);
+        transactionObjDto.setTrackingNumber(trackingNumber);
+        transactionObjDto.setTransactionType(1);
+
+        Transaction transactionObj = transactionConverter.dtoToEntity(transactionObjDto);
 
         boolean cardNumberValidation = originalCardNumberValidation.cardNumberValidation(originalCardNumber);
         if (!cardNumberValidation) {
@@ -328,8 +343,8 @@ public class CardTransactionController {
         JSONObject obj = new JSONObject();
         Card validCard = null;
         Card cardDestination = null;
-        Transaction transactionObj = new Transaction();
-        transactionObj.setResponseCode("00");
+        TransactionDto transactionObjDto = new TransactionDto();
+        transactionObjDto.setResponseCode("00");
         List<Transaction> transactionList = null;
 
         JSONObject json = null;
@@ -358,12 +373,14 @@ public class CardTransactionController {
         Long destinationCardNumber = (Long) json.get("destinationCardNumber");
         Long amount = (Long) json.get("amount");
 
-        transactionObj.setAmount(0L);
-        transactionObj.setTransactionDate(transactionDate);
-        transactionObj.setTerminalType(terminalType);
-        transactionObj.setOriginalCardNumber(originalCardNumber);
-        transactionObj.setTransactionType(2);
-        transactionObj.setTrackingNumber(trackingNumber);
+        transactionObjDto.setAmount(0L);
+        transactionObjDto.setTransactionDate(transactionDate);
+        transactionObjDto.setTerminalType(terminalType);
+        transactionObjDto.setCardNumber(originalCardNumber);
+        transactionObjDto.setTransactionType(2);
+        transactionObjDto.setTrackingNumber(trackingNumber);
+
+        Transaction transactionObj = transactionConverter.dtoToEntity(transactionObjDto);
 
         boolean cardNumberValidation = originalCardNumberValidation.cardNumberValidation(originalCardNumber);
         if (!cardNumberValidation) {
@@ -475,8 +492,8 @@ public class CardTransactionController {
     public JSONObject dailyTransaction(@RequestBody String str) {
         JSONObject obj = new JSONObject();
         Card validCard = null;
-        Transaction transactionObj = new Transaction();
-        transactionObj.setResponseCode("00");
+        TransactionDto transactionObjDto = new TransactionDto();
+        transactionObjDto.setResponseCode("00");
         List<Transaction> transactionList = null;
 
         JSONObject json = null;
@@ -506,12 +523,14 @@ public class CardTransactionController {
         String startDate = (String) json.get("startDate");
         String endDate = (String) json.get("endDate");
 
-        transactionObj.setAmount(0L);
-        transactionObj.setTransactionDate(transactionDate);
-        transactionObj.setTerminalType(terminalType);
-        transactionObj.setOriginalCardNumber(originalCardNumber);
-        transactionObj.setTransactionType(3);
-        transactionObj.setTrackingNumber(trackingNumber);
+        transactionObjDto.setAmount(0L);
+        transactionObjDto.setTransactionDate(transactionDate);
+        transactionObjDto.setTerminalType(terminalType);
+        transactionObjDto.setCardNumber(originalCardNumber);
+        transactionObjDto.setTransactionType(3);
+        transactionObjDto.setTrackingNumber(trackingNumber);
+
+        Transaction transactionObj = transactionConverter.dtoToEntity(transactionObjDto);
 
         boolean cardNumberValidation = originalCardNumberValidation.cardNumberValidation(originalCardNumber);
         if (!cardNumberValidation) {

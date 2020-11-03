@@ -23,7 +23,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 public class CardTransactionControllerIT {
     // these fields must check and update before every test
-    public Long trackingNumber = 1211111111114L;
+    public Long trackingNumber = 1211111111116L;
     public String transactionDate = "2020-11-03 14:59:28";
     public String startDate = "2020-11-01 10:15:28";
     public String endDate = "2020-11-02 14:59:28";
